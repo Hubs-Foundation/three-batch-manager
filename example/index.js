@@ -31,7 +31,7 @@ directionalLight.shadow.bias = -0.00025;
 scene.add(directionalLight);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 2, 5);
+camera.position.set(3.42, 3.4,2.38);
 camera.lookAt(0, 0, 0);
 scene.add(camera);
 
