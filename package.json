@@ -1,13 +1,13 @@
 {
-  "name": "three-vr-ui",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "three-render-manager",
+  "version": "0.1.0",
+  "description": "High level batching / instancing API for ThreeJS",
+  "main": "./src/index.js",
   "scripts": {
     "start": "webpack-dev-server --config ./example/webpack.config.js"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Robert Long",
+  "license": "MPL-2.0",
   "peerDependencies": {
     "three": "^0.104.0"
   },

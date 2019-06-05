@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import { Batch } from "../src/index";
+import { BatchManager } from "../src/index";
 
 const canvas = document.getElementById("canvas");
 
@@ -35,53 +35,50 @@ camera.position.set(0, 2, 5);
 camera.lookAt(0, 0, 0);
 scene.add(camera);
 
-const plane = new THREE.Mesh(
-  new THREE.PlaneBufferGeometry(10, 10, 10),
-  new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.9,
-    metalness: 0.01
-  })
-);
-plane.castShadow = true;
-plane.receiveShadow = true;
-plane.rotation.set(-Math.PI / 2, 0, 0);
-scene.add(plane);
-
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
 controls.update();
 
-const batch = new Batch();
+const batchManager = new BatchManager(scene, renderer);
 
-new GLTFLoader().load("./building_octagonal_shiny/scene.gltf", (gltf) => {
-  gltf.scene.traverse(object => {
-    if (object.isMesh) {
-      object.position.set(5, 0, 0);
-      object.scale.set(0.001, 0.001, 0.001);
-      object.material.color.setRGB(1, 0, 0);
-      batch.addMesh(object);
-    }
-  });
-});
+const mixers = [];
 
-new GLTFLoader().load("./building_beveled_corners_shiny/scene.gltf", (gltf) => {
+new GLTFLoader().load("./MozAtrium.glb", (gltf) => {
   
+
+  gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse(object => {
-    if (object.isMesh) {
-      object.position.set(-5, 0, 0);
-      object.scale.set(0.001, 0.001, 0.001);
-      object.material.color.setRGB(0, 1, 0);
-      batch.addMesh(object);
+    if (object.isMesh && !object.material.transparent) {
+      batchManager.addMesh(object);
     }
   });
+
+  if (gltf.animations && gltf.animations.length > 0) {
+    const mixer = new THREE.AnimationMixer(gltf.scene);
+
+    gltf.animations.forEach(clip => {
+      mixer.clipAction(clip).play();
+    });
+
+    mixers.push(mixer);
+  }
+
+  scene.add(gltf.scene);
 });
 
-scene.add(batch);
+const clock = new THREE.Clock();
 
 function render() {
-  batch.update();
+  const dt = clock.getDelta();
+  
+  for (let i = 0; i < mixers.length; i++) {
+    mixers[i].update(dt);
+  }
+  batchManager.update();
   renderer.render(scene, camera);
 }
 
 renderer.setAnimationLoop(render);
+
+window.renderer = renderer;
+window.scene = scene;
