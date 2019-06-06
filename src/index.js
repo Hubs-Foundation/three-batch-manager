@@ -1,4 +1,4 @@
-import { Mesh, RawShaderMaterial, BufferGeometry, Matrix4, Color, BufferAttribute, DoubleSide, CanvasTexture } from "three";
+import { Mesh, RawShaderMaterial, BufferGeometry, Matrix4, Matrix3, Color, BufferAttribute, DoubleSide, CanvasTexture } from "three";
 
 function createShader(maxMeshes) {
   return {
@@ -12,6 +12,7 @@ function createShader(maxMeshes) {
     uniform mat4 projectionMatrix;
     uniform mat4 transforms[MAX_MESHES];
     uniform vec3 colors[MAX_MESHES];
+    uniform mat3 uvTransforms[MAX_MESHES];
 
     attribute vec3 position;
     attribute float instance;
@@ -19,11 +20,16 @@ function createShader(maxMeshes) {
     attribute vec2 uv;
 
     varying vec2 vUv;
+    varying vec2 vUvMin;
+    varying vec2 vUvScale;
     varying vec3 vColor;
 
     void main() {
       highp int instanceIndex = int(instance);
-      vUv = uv;
+      mat3 uvTransform = uvTransforms[instanceIndex];
+      vUv = (uvTransform * vec3( uv, 1 )).xy;
+      vUvMin = uvTransform[2].xy;
+      vUvScale = vec2(uvTransform[0][0], uvTransform[1][1]);
       vColor = color * colors[instanceIndex];
       gl_Position = projectionMatrix * viewMatrix * transforms[instanceIndex] * vec4(position, 1.0);
     }
@@ -36,10 +42,14 @@ function createShader(maxMeshes) {
     uniform sampler2D map;
     
     varying vec2 vUv;
+    varying vec2 vUvMin;
+    varying vec2 vUvScale;
     varying vec3 vColor;
     
     void main() {
-      gl_FragColor = texture2D(map, vUv) * vec4(vColor, 1.0);
+      vec2 uv = vUv;
+      uv = fract((uv - vUvMin) / vUvScale) * vUvScale + vUvMin;
+      gl_FragColor = texture2D(map, uv) * vec4(vColor, 1.0);
     }
     `
   };
@@ -69,10 +79,12 @@ export class UnlitBatch extends Mesh {
     geometry.setDrawRange(0, 0);
 
     const transforms = [];
+    const uvTransforms = [];
     const colors = [];
 
     for (let i = 0; i < maxMeshes; i++) {
       transforms.push(new Matrix4());
+      uvTransforms.push(new Matrix3());
       colors.push(new Color());
     }
 
@@ -85,7 +97,8 @@ export class UnlitBatch extends Mesh {
       uniforms: {
         map: { value: baseColorMapTexture },
         transforms: { value: transforms },
-        colors: { value: colors }
+        colors: { value: colors },
+        uvTransforms: { value: uvTransforms }
       }
     });
 
@@ -110,9 +123,12 @@ export class UnlitBatch extends Mesh {
   }
 
   addMesh(mesh) {
+    const geometry = mesh.geometry;
+    const material = mesh.material;
+    const batchUniforms = this.material.uniforms;
+
     mesh.updateMatrixWorld(true);
 
-    const geometry = mesh.geometry;
     const meshIndices = geometry.index.array;
     const meshIndicesCount = geometry.index.count;
     const meshVertCount = geometry.attributes.position.count;
@@ -159,18 +175,11 @@ export class UnlitBatch extends Mesh {
       const sOffset = texIdxX / this.atlasSize;
       const tOffset = texIdxY / this.atlasSize;
 
+      batchUniforms.uvTransforms.value[this.instanceCount].setUvTransform(sOffset, tOffset, 1 / this.atlasSize, 1 / this.atlasSize, 0, 0, 0);
+
       for (let i = 0; i < uvCount; i++) {
-        let normalizedS = meshUvArray.getX(i);
-        let normalizedT = meshUvArray.getY(i);
-
-        if (normalizedS < 0) normalizedS += 1;
-        if (normalizedT < 0) normalizedT += 1;
-
-        normalizedS =  normalizedS / this.atlasSize;
-        normalizedT = normalizedT / this.atlasSize;
-
-        batchUvArray[(this.vertCount + i) * 2] = normalizedS + sOffset;
-        batchUvArray[(this.vertCount + i) * 2 + 1] = normalizedT + tOffset;
+        batchUvArray[(this.vertCount + i) * 2] = meshUvArray.getX(i) ;
+        batchUvArray[(this.vertCount + i) * 2 + 1] = meshUvArray.getY(i);
       }
 
       this.geometry.attributes.uv.needsUpdate = true;
@@ -181,8 +190,6 @@ export class UnlitBatch extends Mesh {
     this.geometry.setDrawRange(0, this.geometry.drawRange.count + geometry.index.count);
     
     this.geometry.index.needsUpdate = true;
-
-    const material = mesh.material;
 
     if (material.map && material.map.image) {
       this.baseColorMapCtx.globalCompositeOperation = "source-over"
@@ -219,15 +226,14 @@ export class UnlitBatch extends Mesh {
     //   );
     // }
 
-    this.material.uniforms.map.value.needsUpdate = true;
+    batchUniforms.map.value.needsUpdate = true;
 
-    const uniforms = this.material.uniforms;
-    uniforms.transforms.value[this.instanceCount].copy(mesh.matrixWorld);
+    batchUniforms.transforms.value[this.instanceCount].copy(mesh.matrixWorld);
 
     if (material.color) {
-      uniforms.colors.value[this.instanceCount].copy(material.color);
+      batchUniforms.colors.value[this.instanceCount].copy(material.color);
     } else {
-      uniforms.colors.value[this.instanceCount].setRGB(1, 1, 1);
+      batchUniforms.colors.value[this.instanceCount].setRGB(1, 1, 1);
     }
     this.material.needsUpdate = true;
 
