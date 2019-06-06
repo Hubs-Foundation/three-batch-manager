@@ -15,6 +15,7 @@ function createShader(maxMeshes) {
 
     attribute vec3 position;
     attribute float instance;
+    attribute vec3 color;
     attribute vec2 uv;
 
     varying vec2 vUv;
@@ -23,7 +24,7 @@ function createShader(maxMeshes) {
     void main() {
       highp int instanceIndex = int(instance);
       vUv = uv;
-      vColor = colors[instanceIndex];
+      vColor = color * colors[instanceIndex];
       gl_Position = projectionMatrix * viewMatrix * transforms[instanceIndex] * vec4(position, 1.0);
     }
     `,
@@ -50,7 +51,7 @@ export class UnlitBatch extends Mesh {
       textureResolution: 1024,
       atlasSize: 4,
       maxVertsPerDraw: 65536,
-      enableVertexColors: false
+      enableVertexColors: true
     }, options);
 
     const maxMeshes = _options.atlasSize * _options.atlasSize;
@@ -60,7 +61,7 @@ export class UnlitBatch extends Mesh {
     geometry.addAttribute("position", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3), 3));
 
     if (_options.enableVertexColors) {
-      geometry.addAttribute("color", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3), 3));
+      geometry.addAttribute("color", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3).fill(1), 3));
     }
 
     geometry.addAttribute("uv", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 2), 2));
@@ -125,17 +126,33 @@ export class UnlitBatch extends Mesh {
     this.geometry.attributes.instance.array.fill(this.instanceCount, this.vertCount, this.vertCount + meshVertCount);
     this.geometry.attributes.instance.needsUpdate = true;
     
-    this.geometry.attributes.position.array.set(geometry.attributes.position.array, this.vertCount * 3);
+    const meshPositionsAttribute = geometry.attributes.position;
+    const batchPositionsArray = this.geometry.attributes.position.array;
+
+    for (let i = 0; i < meshVertCount; i++) {
+      batchPositionsArray[(this.vertCount + i) * 3] = meshPositionsAttribute.getX(i);
+      batchPositionsArray[(this.vertCount + i) * 3 + 1] = meshPositionsAttribute.getY(i);
+      batchPositionsArray[(this.vertCount + i) * 3 + 2] = meshPositionsAttribute.getZ(i);
+    }
+
     this.geometry.attributes.position.needsUpdate = true;
 
-    if (this.vertexColors && geometry.attributes.color) {
-      this.geometry.attributes.color.array.set(geometry.attributes.color.array, this.vertCount * 3);
+    if (this.enableVertexColors && geometry.attributes.color) {
+      const meshColorAttribute = geometry.attributes.color;
+      const batchColorArray = this.geometry.attributes.color.array;
+
+      for (let i = 0; i < meshVertCount; i++) {
+        batchColorArray[(this.vertCount + i) * 3] = meshColorAttribute.getX(i);
+        batchColorArray[(this.vertCount + i) * 3 + 1] = meshColorAttribute.getY(i);
+        batchColorArray[(this.vertCount + i) * 3 + 2] = meshColorAttribute.getZ(i);
+      }
+
       this.geometry.attributes.color.needsUpdate = true;
     }
 
     if (geometry.attributes.uv) {
       const batchUvArray = this.geometry.attributes.uv.array;
-      const meshUvArray = geometry.attributes.uv.array;
+      const meshUvArray = geometry.attributes.uv;
       const uvCount = geometry.attributes.uv.count;
       const texIdxX = this.instanceCount % this.atlasSize;
       const texIdxY = Math.floor(this.instanceCount / this.atlasSize);
@@ -143,8 +160,15 @@ export class UnlitBatch extends Mesh {
       const tOffset = texIdxY / this.atlasSize;
 
       for (let i = 0; i < uvCount; i++) {
-        const normalizedS =  meshUvArray[i * 2] / this.atlasSize;
-        const normalizedT = meshUvArray[i * 2 + 1] / this.atlasSize;
+        let normalizedS = meshUvArray.getX(i);
+        let normalizedT = meshUvArray.getY(i);
+
+        if (normalizedS < 0) normalizedS += 1;
+        if (normalizedT < 0) normalizedT += 1;
+
+        normalizedS =  normalizedS / this.atlasSize;
+        normalizedT = normalizedT / this.atlasSize;
+
         batchUvArray[(this.vertCount + i) * 2] = normalizedS + sOffset;
         batchUvArray[(this.vertCount + i) * 2 + 1] = normalizedT + tOffset;
       }
@@ -199,7 +223,12 @@ export class UnlitBatch extends Mesh {
 
     const uniforms = this.material.uniforms;
     uniforms.transforms.value[this.instanceCount].copy(mesh.matrixWorld);
-    uniforms.colors.value[this.instanceCount].copy(material.color);
+
+    if (material.color) {
+      uniforms.colors.value[this.instanceCount].copy(material.color);
+    } else {
+      uniforms.colors.value[this.instanceCount].setRGB(1, 1, 1);
+    }
     this.material.needsUpdate = true;
 
     mesh.visible = false;
@@ -213,9 +242,13 @@ export class UnlitBatch extends Mesh {
 
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
-      mesh.updateMatrixWorld();
       uniforms.transforms.value[i].copy(mesh.matrixWorld);
-      uniforms.colors.value[i].copy(mesh.material.color);
+
+      if (mesh.material.color) {
+        uniforms.colors.value[i].copy(mesh.material.color);
+      } else {
+        uniforms.colors.value[i].setRGB(1, 1, 1);
+      }
     }
   }
 }
@@ -234,7 +267,7 @@ export class BatchManager {
   
     for (let i = 0; i < this.batches.length; i++) {
       const batch = batches[i];
-      if (batch.instanceCount < batch.maxMeshes - 1) {
+      if (batch.instanceCount < batch.maxMeshes - 1 && batch.vertCount + mesh.geometry.index.count < batch.maxVertsPerDraw) {
         nextBatch = batch;
         break;
       }
