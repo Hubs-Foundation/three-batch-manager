@@ -16,7 +16,7 @@ module.exports = {
       template: path.join(__dirname, "index.html")
     }),
     new webpack.ProvidePlugin({
-      THREE: 'three'
+      THREE: "three"
     })
   ]
 };

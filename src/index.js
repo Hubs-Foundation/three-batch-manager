@@ -1,4 +1,14 @@
-import { Mesh, RawShaderMaterial, BufferGeometry, Matrix4, Matrix3, Color, BufferAttribute, DoubleSide, CanvasTexture } from "three";
+import {
+  Mesh,
+  RawShaderMaterial,
+  BufferGeometry,
+  Matrix4,
+  Matrix3,
+  Color,
+  BufferAttribute,
+  DoubleSide,
+  CanvasTexture
+} from "three";
 
 function createShader(maxMeshes) {
   return {
@@ -53,18 +63,21 @@ function createShader(maxMeshes) {
     }
     `
   };
-};
+}
 
-const HIDE_MATRIX = new Matrix4().makeScale(0,0,0);
+const HIDE_MATRIX = new Matrix4().makeScale(0, 0, 0);
 
 export class UnlitBatch extends Mesh {
   constructor(options = {}) {
-    const _options = Object.assign({
-      textureResolution: 1024,
-      atlasSize: 4,
-      maxVertsPerDraw: 65536,
-      enableVertexColors: true
-    }, options);
+    const _options = Object.assign(
+      {
+        textureResolution: 1024,
+        atlasSize: 4,
+        maxVertsPerDraw: 65536,
+        enableVertexColors: true
+      },
+      options
+    );
 
     const maxMeshes = _options.atlasSize * _options.atlasSize;
 
@@ -142,10 +155,10 @@ export class UnlitBatch extends Mesh {
       batchIndicesArray[batchIndicesOffset + i] = meshIndices[i] + this.vertCount;
     }
     // meshIndiciesAttribute.setArray(batchIndicesArray.subarray(batchIndicesOffset, batchIndicesOffset + meshIndicesCount))
-    
+
     this.geometry.attributes.instance.array.fill(this.instanceCount, this.vertCount, this.vertCount + meshVertCount);
     this.geometry.attributes.instance.needsUpdate = true;
-    
+
     const meshPositionsAttribute = geometry.attributes.position;
     const batchPositionsArray = this.geometry.attributes.position.array;
     for (let i = 0; i < meshVertCount; i++) {
@@ -180,10 +193,18 @@ export class UnlitBatch extends Mesh {
       const sOffset = texIdxX / this.atlasSize;
       const tOffset = texIdxY / this.atlasSize;
 
-      batchUniforms.uvTransforms.value[this.instanceCount].setUvTransform(sOffset, tOffset, 1 / this.atlasSize, 1 / this.atlasSize, 0, 0, 0);
+      batchUniforms.uvTransforms.value[this.instanceCount].setUvTransform(
+        sOffset,
+        tOffset,
+        1 / this.atlasSize,
+        1 / this.atlasSize,
+        0,
+        0,
+        0
+      );
 
       for (let i = 0; i < uvCount; i++) {
-        batchUvArray[(this.vertCount + i) * 2] = meshUvAttribute.getX(i) ;
+        batchUvArray[(this.vertCount + i) * 2] = meshUvAttribute.getX(i);
         batchUvArray[(this.vertCount + i) * 2 + 1] = meshUvAttribute.getY(i);
       }
 
@@ -194,14 +215,14 @@ export class UnlitBatch extends Mesh {
     this.vertCount += meshVertCount;
 
     this.geometry.setDrawRange(0, this.geometry.drawRange.count + geometry.index.count);
-    
+
     this.geometry.index.needsUpdate = true;
 
     if (material.map && material.map.image) {
-      this.baseColorMapCtx.globalCompositeOperation = "source-over"
+      this.baseColorMapCtx.globalCompositeOperation = "source-over";
       this.baseColorMapCtx.drawImage(
         material.map.image,
-        this.instanceCount % this.atlasSize * this.textureResolution,
+        (this.instanceCount % this.atlasSize) * this.textureResolution,
         Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
         this.textureResolution,
         this.textureResolution
@@ -209,10 +230,10 @@ export class UnlitBatch extends Mesh {
     }
 
     if (material.emissiveMap && material.emissiveMap.image) {
-      this.baseColorMapCtx.globalCompositeOperation = "lighter"
+      this.baseColorMapCtx.globalCompositeOperation = "lighter";
       this.baseColorMapCtx.drawImage(
         material.emissiveMap.image,
-        this.instanceCount % this.atlasSize * this.textureResolution,
+        (this.instanceCount % this.atlasSize) * this.textureResolution,
         Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
         this.textureResolution,
         this.textureResolution
@@ -244,7 +265,7 @@ export class UnlitBatch extends Mesh {
     this.material.needsUpdate = true;
 
     // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
-    mesh.layers.disable(0)
+    mesh.layers.disable(0);
 
     this.instanceCount++;
 
@@ -256,7 +277,7 @@ export class UnlitBatch extends Mesh {
 
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
-      mesh.updateMatrices && mesh.updateMatrices()
+      mesh.updateMatrices && mesh.updateMatrices();
       //TODO need to account for nested visibility deeper than 1 level
       uniforms.transforms.value[i].copy(mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
 
@@ -280,10 +301,13 @@ export class BatchManager {
     let nextBatch = null;
 
     const batches = this.batches;
-  
+
     for (let i = 0; i < this.batches.length; i++) {
       const batch = batches[i];
-      if (batch.instanceCount < batch.maxMeshes - 1 && batch.vertCount + mesh.geometry.index.count < batch.maxVertsPerDraw) {
+      if (
+        batch.instanceCount < batch.maxMeshes - 1 &&
+        batch.vertCount + mesh.geometry.index.count < batch.maxVertsPerDraw
+      ) {
         nextBatch = batch;
         break;
       }
@@ -301,7 +325,7 @@ export class BatchManager {
   update() {
     const batches = this.batches;
 
-    for (let i = 0; i < batches.length; i ++) {
+    for (let i = 0; i < batches.length; i++) {
       batches[i].update();
     }
   }

@@ -23,7 +23,7 @@ directionalLight.shadow.camera.near = 1;
 directionalLight.shadow.camera.far = 100;
 directionalLight.shadow.camera.right = 10;
 directionalLight.shadow.camera.left = -10;
-directionalLight.shadow.camera.top	= 10;
+directionalLight.shadow.camera.top = 10;
 directionalLight.shadow.camera.bottom = -10;
 directionalLight.shadow.mapSize.width = 1024;
 directionalLight.shadow.mapSize.height = 1024;
@@ -31,7 +31,7 @@ directionalLight.shadow.bias = -0.00025;
 scene.add(directionalLight);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(3.42, 3.4,2.38);
+camera.position.set(3.42, 3.4, 2.38);
 camera.lookAt(0, 0, 0);
 scene.add(camera);
 
@@ -43,9 +43,7 @@ const batchManager = new BatchManager(scene, renderer);
 
 const mixers = [];
 
-new GLTFLoader().load("./MozAtrium.glb", (gltf) => {
-  
-
+new GLTFLoader().load("./MozAtrium.glb", gltf => {
   gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse(object => {
     if (object.isMesh && !object.material.transparent) {
@@ -70,7 +68,7 @@ const clock = new THREE.Clock();
 
 function render() {
   const dt = clock.getDelta();
-  
+
   for (let i = 0; i < mixers.length; i++) {
     mixers[i].update(dt);
   }
