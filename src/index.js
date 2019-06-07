@@ -141,7 +141,7 @@ export class UnlitBatch extends Mesh {
     for (let i = 0; i < meshIndicesCount; i++) {
       batchIndicesArray[batchIndicesOffset + i] = meshIndices[i] + this.vertCount;
     }
-    meshIndiciesAttribute.setArray(batchIndicesArray.subarray(batchIndicesOffset, batchIndicesOffset + meshIndicesCount))
+    // meshIndiciesAttribute.setArray(batchIndicesArray.subarray(batchIndicesOffset, batchIndicesOffset + meshIndicesCount))
     
     this.geometry.attributes.instance.array.fill(this.instanceCount, this.vertCount, this.vertCount + meshVertCount);
     this.geometry.attributes.instance.needsUpdate = true;
@@ -154,7 +154,7 @@ export class UnlitBatch extends Mesh {
       batchPositionsArray[(this.vertCount + i) * 3 + 2] = meshPositionsAttribute.getZ(i);
     }
 
-    meshPositionsAttribute.setArray(batchPositionsArray.subarray(this.vertCount * 3, this.vertCount * 3 + meshVertCount * 3))
+    // meshPositionsAttribute.setArray(batchPositionsArray.subarray(this.vertCount * 3, this.vertCount * 3 + meshVertCount * 3))
     this.geometry.attributes.position.needsUpdate = true;
 
     if (this.enableVertexColors && geometry.attributes.color) {
@@ -167,7 +167,7 @@ export class UnlitBatch extends Mesh {
         batchColorArray[(this.vertCount + i) * 3 + 2] = meshColorAttribute.getZ(i);
       }
 
-      meshColorAttribute.setArray(batchColorArray.subarray(this.vertCount * 3, this.vertCount * 3 + meshVertCount * 3))
+      // meshColorAttribute.setArray(batchColorArray.subarray(this.vertCount * 3, this.vertCount * 3 + meshVertCount * 3 ))
       this.geometry.attributes.color.needsUpdate = true;
     }
 
@@ -187,7 +187,7 @@ export class UnlitBatch extends Mesh {
         batchUvArray[(this.vertCount + i) * 2 + 1] = meshUvAttribute.getY(i);
       }
 
-      meshUvAttribute.setArray(batchUvArray.subarray(this.vertCount * 2, this.vertCount * 2 + uvCount * 2))
+      // meshUvAttribute.setArray(batchUvArray.subarray(this.vertCount * 2, this.vertCount * 2 + uvCount * 2))
       this.geometry.attributes.uv.needsUpdate = true;
     }
 
