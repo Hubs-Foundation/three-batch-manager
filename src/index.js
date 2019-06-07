@@ -256,6 +256,7 @@ export class UnlitBatch extends Mesh {
 
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
+      mesh.updateMatrices && mesh.updateMatrices()
       //TODO need to account for nested visibility deeper than 1 level
       uniforms.transforms.value[i].copy(mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
 
