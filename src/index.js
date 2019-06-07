@@ -55,6 +55,8 @@ function createShader(maxMeshes) {
   };
 };
 
+const HIDE_MATRIX = new Matrix4().makeScale(0,0,0);
+
 export class UnlitBatch extends Mesh {
   constructor(options = {}) {
     const _options = Object.assign({
@@ -129,28 +131,30 @@ export class UnlitBatch extends Mesh {
 
     mesh.updateMatrixWorld(true);
 
+    const meshIndiciesAttribute = geometry.index;
     const meshIndices = geometry.index.array;
     const meshIndicesCount = geometry.index.count;
     const meshVertCount = geometry.attributes.position.count;
-    const batchIndices = this.geometry.index.array;
+    const batchIndicesArray = this.geometry.index.array;
     const batchIndicesOffset = this.geometry.drawRange.count;
 
     for (let i = 0; i < meshIndicesCount; i++) {
-      batchIndices[batchIndicesOffset + i] = meshIndices[i] + this.vertCount;
+      batchIndicesArray[batchIndicesOffset + i] = meshIndices[i] + this.vertCount;
     }
+    meshIndiciesAttribute.setArray(batchIndicesArray.subarray(batchIndicesOffset, batchIndicesOffset + meshIndicesCount))
     
     this.geometry.attributes.instance.array.fill(this.instanceCount, this.vertCount, this.vertCount + meshVertCount);
     this.geometry.attributes.instance.needsUpdate = true;
     
     const meshPositionsAttribute = geometry.attributes.position;
     const batchPositionsArray = this.geometry.attributes.position.array;
-
     for (let i = 0; i < meshVertCount; i++) {
       batchPositionsArray[(this.vertCount + i) * 3] = meshPositionsAttribute.getX(i);
       batchPositionsArray[(this.vertCount + i) * 3 + 1] = meshPositionsAttribute.getY(i);
       batchPositionsArray[(this.vertCount + i) * 3 + 2] = meshPositionsAttribute.getZ(i);
     }
 
+    meshPositionsAttribute.setArray(batchPositionsArray.subarray(this.vertCount * 3, this.vertCount * 3 + meshVertCount * 3))
     this.geometry.attributes.position.needsUpdate = true;
 
     if (this.enableVertexColors && geometry.attributes.color) {
@@ -163,12 +167,13 @@ export class UnlitBatch extends Mesh {
         batchColorArray[(this.vertCount + i) * 3 + 2] = meshColorAttribute.getZ(i);
       }
 
+      meshColorAttribute.setArray(batchColorArray.subarray(this.vertCount * 3, this.vertCount * 3 + meshVertCount * 3))
       this.geometry.attributes.color.needsUpdate = true;
     }
 
     if (geometry.attributes.uv) {
       const batchUvArray = this.geometry.attributes.uv.array;
-      const meshUvArray = geometry.attributes.uv;
+      const meshUvAttribute = geometry.attributes.uv;
       const uvCount = geometry.attributes.uv.count;
       const texIdxX = this.instanceCount % this.atlasSize;
       const texIdxY = Math.floor(this.instanceCount / this.atlasSize);
@@ -178,10 +183,11 @@ export class UnlitBatch extends Mesh {
       batchUniforms.uvTransforms.value[this.instanceCount].setUvTransform(sOffset, tOffset, 1 / this.atlasSize, 1 / this.atlasSize, 0, 0, 0);
 
       for (let i = 0; i < uvCount; i++) {
-        batchUvArray[(this.vertCount + i) * 2] = meshUvArray.getX(i) ;
-        batchUvArray[(this.vertCount + i) * 2 + 1] = meshUvArray.getY(i);
+        batchUvArray[(this.vertCount + i) * 2] = meshUvAttribute.getX(i) ;
+        batchUvArray[(this.vertCount + i) * 2 + 1] = meshUvAttribute.getY(i);
       }
 
+      meshUvAttribute.setArray(batchUvArray.subarray(this.vertCount * 2, this.vertCount * 2 + uvCount * 2))
       this.geometry.attributes.uv.needsUpdate = true;
     }
 
@@ -237,7 +243,9 @@ export class UnlitBatch extends Mesh {
     }
     this.material.needsUpdate = true;
 
-    mesh.visible = false;
+    // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
+    mesh.layers.disable(0)
+
     this.instanceCount++;
 
     this.meshes.push(mesh);
@@ -248,7 +256,8 @@ export class UnlitBatch extends Mesh {
 
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
-      uniforms.transforms.value[i].copy(mesh.matrixWorld);
+      //TODO need to account for nested visibility deeper than 1 level
+      uniforms.transforms.value[i].copy(mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
 
       if (mesh.material.color) {
         uniforms.colors.value[i].copy(mesh.material.color);
