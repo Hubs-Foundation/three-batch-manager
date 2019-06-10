@@ -1,14 +1,5 @@
-import {
-  Mesh,
-  RawShaderMaterial,
-  BufferGeometry,
-  Matrix4,
-  Matrix3,
-  Color,
-  BufferAttribute,
-  DoubleSide,
-  CanvasTexture
-} from "three";
+import { Mesh, RawShaderMaterial, BufferGeometry, Matrix4, Matrix3, Color, BufferAttribute } from "three";
+import WebGLAtlasTexture from "./WebGLAtlasTexture";
 
 function createShader(maxMeshes) {
   return {
@@ -103,19 +94,28 @@ export class UnlitBatch extends Mesh {
       colors.push(new Color());
     }
 
-    const baseColorMapCanvas = document.createElement("canvas");
-    const baseColorMapTexture = new CanvasTexture(baseColorMapCanvas);
-    baseColorMapTexture.flipY = false; // GLTFLoader sets this to false
+    // const baseColorMapCanvas = document.createElement("canvas");
+    // const baseColorMapTexture = new CanvasTexture(baseColorMapCanvas);
+    // baseColorMapTexture.flipY = false; // GLTFLoader sets this to false
+    // baseColorMapCanvas.style.position = "absolute";
+    // baseColorMapCanvas.style.top = 0;
+    // baseColorMapCanvas.style.left = 0;
+    // baseColorMapCanvas.style.width = "512px";
+
+    const baseAtlas = new WebGLAtlasTexture(options.renderer);
+
+    // document.body.appendChild(baseColorMapCanvas);
 
     const material = new RawShaderMaterial({
       ...createShader(maxMeshes),
       uniforms: {
-        map: { value: baseColorMapTexture },
+        map: { value: baseAtlas },
         transforms: { value: transforms },
         colors: { value: colors },
         uvTransforms: { value: uvTransforms }
       }
     });
+    console.log(material);
 
     super(geometry, material);
 
@@ -131,10 +131,10 @@ export class UnlitBatch extends Mesh {
     this.meshes = [];
     this.frustumCulled = false;
 
-    this.baseColorMapCanvas = baseColorMapCanvas;
-    this.baseColorMapCanvas.width = this.textureResolution * this.atlasSize;
-    this.baseColorMapCanvas.height = this.textureResolution * this.atlasSize;
-    this.baseColorMapCtx = this.baseColorMapCanvas.getContext("2d");
+    // this.baseColorMapCanvas = baseColorMapCanvas;
+    // this.baseColorMapCanvas.width = this.textureResolution * this.atlasSize;
+    // this.baseColorMapCanvas.height = this.textureResolution * this.atlasSize;
+    // this.baseColorMapCtx = this.baseColorMapCanvas.getContext("2d");
   }
 
   addMesh(mesh) {
@@ -188,20 +188,6 @@ export class UnlitBatch extends Mesh {
       const batchUvArray = this.geometry.attributes.uv.array;
       const meshUvAttribute = geometry.attributes.uv;
       const uvCount = geometry.attributes.uv.count;
-      const texIdxX = this.instanceCount % this.atlasSize;
-      const texIdxY = Math.floor(this.instanceCount / this.atlasSize);
-      const sOffset = texIdxX / this.atlasSize;
-      const tOffset = texIdxY / this.atlasSize;
-
-      batchUniforms.uvTransforms.value[this.instanceCount].setUvTransform(
-        sOffset,
-        tOffset,
-        1 / this.atlasSize,
-        1 / this.atlasSize,
-        0,
-        0,
-        0
-      );
 
       for (let i = 0; i < uvCount; i++) {
         batchUvArray[(this.vertCount + i) * 2] = meshUvAttribute.getX(i);
@@ -218,27 +204,36 @@ export class UnlitBatch extends Mesh {
 
     this.geometry.index.needsUpdate = true;
 
+    console.log(material.map);
     if (material.map && material.map.image) {
-      this.baseColorMapCtx.globalCompositeOperation = "source-over";
-      this.baseColorMapCtx.drawImage(
+      // this.baseColorMapCtx.globalCompositeOperation = "source-over";
+      // this.baseColorMapCtx.drawImage(
+      //   material.map.image,
+      //   (this.instanceCount % this.atlasSize) * this.textureResolution,
+      //   Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
+      //   this.textureResolution,
+      //   this.textureResolution
+      // );
+
+      const textureId = batchUniforms.map.value.addImage(
         material.map.image,
-        (this.instanceCount % this.atlasSize) * this.textureResolution,
-        Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
-        this.textureResolution,
-        this.textureResolution
+        batchUniforms.uvTransforms.value[this.instanceCount]
       );
+      batchUniforms.uvTransforms.needsUpdate = true;
+
+      console.log("Added image", material.map.image, textureId);
     }
 
-    if (material.emissiveMap && material.emissiveMap.image) {
-      this.baseColorMapCtx.globalCompositeOperation = "lighter";
-      this.baseColorMapCtx.drawImage(
-        material.emissiveMap.image,
-        (this.instanceCount % this.atlasSize) * this.textureResolution,
-        Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
-        this.textureResolution,
-        this.textureResolution
-      );
-    }
+    // if (material.emissiveMap && material.emissiveMap.image) {
+    //   this.baseColorMapCtx.globalCompositeOperation = "lighter";
+    //   this.baseColorMapCtx.drawImage(
+    //     material.emissiveMap.image,
+    //     (this.instanceCount % this.atlasSize) * this.textureResolution,
+    //     Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
+    //     this.textureResolution,
+    //     this.textureResolution
+    //   );
+    // }
 
     // TODO: Find a way to add just the occlusion (Red) channel
     // Maybe move to creating the texture with WebGL?
@@ -253,7 +248,7 @@ export class UnlitBatch extends Mesh {
     //   );
     // }
 
-    batchUniforms.map.value.needsUpdate = true;
+    // batchUniforms.map.value.needsUpdate = true;
 
     batchUniforms.transforms.value[this.instanceCount].copy(mesh.matrixWorld);
 
@@ -314,7 +309,7 @@ export class BatchManager {
     }
 
     if (nextBatch === null) {
-      nextBatch = new UnlitBatch();
+      nextBatch = new UnlitBatch({ renderer: this.renderer });
       this.scene.add(nextBatch);
       this.batches.push(nextBatch);
     }
