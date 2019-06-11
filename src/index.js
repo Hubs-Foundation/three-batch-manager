@@ -368,8 +368,9 @@ export class BatchManager {
     for (let i = 0; i < this.batches.length; i++) {
       const batch = batches[i];
       if (
-        batch.instanceCount < batch.maxMeshes - 1 &&
-        batch.vertCount + mesh.geometry.index.count < batch.maxVertsPerDraw
+        batch.instanceCount < batch.maxMeshes &&
+        batch.geometry.drawRange.count + mesh.geometry.index.count < batch.maxVertsPerDraw &&
+        batch.vertCount + mesh.geometry.attributes.position.count < batch.maxVertsPerDraw
       ) {
         nextBatch = batch;
         break;
