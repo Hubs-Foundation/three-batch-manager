@@ -119,16 +119,16 @@ export class UnlitBatch extends Mesh {
 
     super(geometry, material);
 
-    this.textureResolution = _options.textureResolution;
-    this.atlasSize = _options.atlasSize;
     this.maxVertsPerDraw = _options.maxVertsPerDraw;
     this.enableVertexColors = _options.enableVertexColors;
     this.maxMeshes = maxMeshes;
 
+    this.textureIds = new Array(maxMeshes);
+
     this.vertCount = 0;
     this.instanceCount = 0;
 
-    this.meshes = [];
+    this.meshes = new Array(maxMeshes);
     this.frustumCulled = false;
 
     // this.baseColorMapCanvas = baseColorMapCanvas;
@@ -144,7 +144,7 @@ export class UnlitBatch extends Mesh {
 
     mesh.updateMatrixWorld(true);
 
-    const meshIndiciesAttribute = geometry.index;
+    // const meshIndiciesAttribute = geometry.index;
     const meshIndices = geometry.index.array;
     const meshIndicesCount = geometry.index.count;
     const meshVertCount = geometry.attributes.position.count;
@@ -219,9 +219,7 @@ export class UnlitBatch extends Mesh {
         material.map.image,
         batchUniforms.uvTransforms.value[this.instanceCount]
       );
-      batchUniforms.uvTransforms.needsUpdate = true;
-
-      console.log("Added image", material.map.image, textureId);
+      this.textureIds[this.instanceCount] = textureId;
     }
 
     // if (material.emissiveMap && material.emissiveMap.image) {
@@ -262,9 +260,17 @@ export class UnlitBatch extends Mesh {
     // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
     mesh.layers.disable(0);
 
+    this.meshes[this.instanceCount] = mesh;
     this.instanceCount++;
+  }
 
-    this.meshes.push(mesh);
+  removeMesh(mesh) {
+    const idx = this.meshes.indexOf(mesh);
+    const batchUniforms = this.material.uniforms;
+    batchUniforms.map.value.removeImage(this.textureIds[idx]);
+    // TODO this is just hidng the mesh, we want to reclaim space in the batch
+    batchUniforms.transforms.value[idx].copy(HIDE_MATRIX);
+    this.meshes[idx] = null;
   }
 
   update() {
@@ -272,6 +278,7 @@ export class UnlitBatch extends Mesh {
 
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
+      if (!mesh) continue;
       mesh.updateMatrices && mesh.updateMatrices();
       //TODO need to account for nested visibility deeper than 1 level
       uniforms.transforms.value[i].copy(mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
@@ -290,6 +297,7 @@ export class BatchManager {
     this.scene = scene;
     this.renderer = renderer;
     this.batches = [];
+    this.batchForMesh = new WeakMap();
   }
 
   addMesh(mesh) {
@@ -315,6 +323,13 @@ export class BatchManager {
     }
 
     nextBatch.addMesh(mesh);
+    this.batchForMesh.set(mesh, nextBatch);
+  }
+
+  removeMesh(mesh) {
+    const batch = this.batchForMesh.get(mesh);
+    batch.removeMesh(mesh);
+    this.batchForMesh.delete(mesh);
   }
 
   update() {

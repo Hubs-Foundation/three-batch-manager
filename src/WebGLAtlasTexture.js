@@ -1,7 +1,7 @@
 import { NearestFilter, Texture } from "three";
 
 export default class WebGLAtlasTexture extends Texture {
-  constructor(renderer, atlasSize = 4096, textureResolution = 1024) {
+  constructor(renderer, atlasResolution = 4096, textureResolution = 1024) {
     super();
 
     this.ninFilter = NearestFilter;
@@ -14,20 +14,23 @@ export default class WebGLAtlasTexture extends Texture {
     this.canvas.width = this.canvas.height = textureResolution;
     this.canvasCtx = this.canvas.getContext("2d");
 
-    this.atlasSize = atlasSize;
+    this.atlasResolution = atlasResolution;
     this.textureResolution = textureResolution;
+    this.rows = this.atlasResolution / this.textureResolution;
+    this.colls = this.rows;
 
-    const maxIndicies = (atlasSize / textureResolution) * (atlasSize / textureResolution);
-    this.availableIndicies = new Array(maxIndicies);
-    for (let i = 0; i < maxIndicies; i++) {
-      this.availableIndicies[i] = i;
-    }
+    this.lastIdx = 0;
+    this.freedIndicies = [];
 
     this.flipY = false;
 
     console.log("atlas", this);
 
     this.alloc();
+  }
+
+  nextId() {
+    return this.freedIndicies.length ? this.freedIndicies.pop() : this.lastIdx++;
   }
 
   alloc() {
@@ -57,7 +60,17 @@ export default class WebGLAtlasTexture extends Texture {
       _gl.texParameteri(_gl.TEXTURE_2D, _gl.TEXTURE_MAG_FILTER, _gl.LINEAR);
       _gl.texParameteri(_gl.TEXTURE_2D, _gl.TEXTURE_MIN_FILTER, _gl.LINEAR);
 
-      state.texImage2D(_gl.TEXTURE_2D, 0, _gl.RGBA, this.atlasSize, this.atlasSize, 0, _gl.RGBA, _gl.UNSIGNED_BYTE);
+      state.texImage2D(
+        _gl.TEXTURE_2D,
+        0,
+        _gl.RGBA,
+        this.atlasResolution,
+        this.atlasResolution,
+        0,
+        _gl.RGBA,
+        _gl.UNSIGNED_BYTE,
+        null
+      );
 
       textureProperties.__maxMipLevel = 0;
 
@@ -94,21 +107,18 @@ export default class WebGLAtlasTexture extends Texture {
       console.log("skipping canvas");
     }
 
-    const rows = this.atlasSize / this.textureResolution;
-    const colls = rows;
+    const textureIdx = this.nextId();
 
-    const textureIdx = this.availableIndicies.pop();
+    const texIdxX = textureIdx % this.rows;
+    const texIdxY = Math.floor(textureIdx / this.colls);
 
-    const texIdxX = textureIdx % rows;
-    const texIdxY = Math.floor(textureIdx / colls);
-
-    this.uploadImage(texIdxX * this.textureResolution, texIdxY * this.textureResolution, imgToUpload);
+    this.uploadImage(texIdxX, texIdxY, imgToUpload);
 
     uvTransform.setUvTransform(
-      texIdxX / rows,
-      texIdxY / colls,
-      (1 / rows) * (width / this.textureResolution),
-      (1 / colls) * (height / this.textureResolution),
+      texIdxX / this.rows,
+      texIdxY / this.colls,
+      (1 / this.rows) * (width / this.textureResolution),
+      (1 / this.colls) * (height / this.textureResolution),
       0,
       0,
       0
@@ -128,11 +138,29 @@ export default class WebGLAtlasTexture extends Texture {
     _gl.pixelStorei(_gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
     _gl.pixelStorei(_gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
     _gl.pixelStorei(_gl.UNPACK_ALIGNMENT, this.unpackAlignment);
-    _gl.texSubImage2D(_gl.TEXTURE_2D, 0, x, y, _gl.RGBA, _gl.UNSIGNED_BYTE, img);
+    _gl.texSubImage2D(
+      _gl.TEXTURE_2D,
+      0,
+      x * this.textureResolution,
+      y * this.textureResolution,
+      _gl.RGBA,
+      _gl.UNSIGNED_BYTE,
+      img
+    );
   }
 
-  removeImage(textureId) {
-    this.availableIndicies.push(textureId);
-    console.log("Remove", textureId, this.availableIndicies);
+  removeImage(textureIdx) {
+    this.freedIndicies.push(textureIdx);
+    this.canvasCtx.clearRect(0, 0, this.textureResolution, this.textureResolution);
+    const texIdxX = textureIdx % this.rows;
+    const texIdxY = Math.floor(textureIdx / this.colls);
+    this.uploadImage(texIdxX, texIdxY, this.canvas);
+    console.log("Remove", textureIdx, this.freedIndicies);
   }
 }
+
+Object.defineProperty(WebGLAtlasTexture.prototype, "needsUpdate", {
+  set: function() {
+    console.warn("needsUpdate should not be set on a WebGLAtlasTexture, it handles texture uploading internally");
+  }
+});
