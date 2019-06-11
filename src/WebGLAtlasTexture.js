@@ -4,7 +4,7 @@ export default class WebGLAtlasTexture extends Texture {
   constructor(renderer, atlasResolution = 4096, textureResolution = 1024) {
     super();
 
-    this.ninFilter = NearestFilter;
+    this.minFilter = NearestFilter;
     this.magFilter = NearestFilter;
     this.renderer = renderer;
     this.mipmaps = [];

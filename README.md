@@ -6,7 +6,7 @@ This project is currently experimental, the API will change, and it may not alwa
 
 ## Features
 - [ ] Dynamic batching via instance vertex attribute and instance uniforms stored in a uniform array (In Progress)
-  - [ ] Skinned mesh support
+- [ ] Skinned mesh support
 - [ ] Static batching
 - [ ] Instancing
 - [ ] Batched 2D quads with spritesheet support for UIs
