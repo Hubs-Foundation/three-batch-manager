@@ -284,7 +284,13 @@ export class UnlitBatch extends Mesh {
 
     const vertCount = mesh.geometry.attributes.position.count;
     const batchAttributes = this.geometry.attributes;
-    batchAttributes.instance.array.copyWithin(preVertCount, preVertCount + vertCount);
+    let insertAt = preVertCount;
+    for (let i = idx + 1; i < this.meshes.length; i++) {
+      const geometry = this.meshes[i].geometry;
+      const nextVertCount = geometry.attributes.position.count;
+      batchAttributes.instance.array.fill(i - 1, insertAt, insertAt + nextVertCount);
+      insertAt = insertAt + nextVertCount;
+    }
     batchAttributes.instance.needsUpdate = true;
     batchAttributes.position.array.copyWithin(preVertCount * 3, (preVertCount + vertCount) * 3);
     batchAttributes.position.needsUpdate = true;
