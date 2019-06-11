@@ -39,14 +39,14 @@ function createShader(maxMeshes) {
     fragmentShader: `
     precision highp float;
     precision highp int;
-    
+
     uniform sampler2D map;
-    
+
     varying vec2 vUv;
     varying vec2 vUvMin;
     varying vec2 vUvScale;
     varying vec3 vColor;
-    
+
     void main() {
       vec2 uv = vUv;
       uv = fract((uv - vUvMin) / vUvScale) * vUvScale + vUvMin;
@@ -123,12 +123,13 @@ export class UnlitBatch extends Mesh {
     this.enableVertexColors = _options.enableVertexColors;
     this.maxMeshes = maxMeshes;
 
-    this.textureIds = new Array(maxMeshes);
+    this.textureIds = [];
 
     this.vertCount = 0;
     this.instanceCount = 0;
 
-    this.meshes = new Array(maxMeshes);
+    this.meshes = [];
+
     this.frustumCulled = false;
 
     // this.baseColorMapCanvas = baseColorMapCanvas;
@@ -145,18 +146,21 @@ export class UnlitBatch extends Mesh {
     mesh.updateMatrixWorld(true);
 
     // const meshIndiciesAttribute = geometry.index;
+    const instanceId = this.instanceCount;
     const meshIndices = geometry.index.array;
     const meshIndicesCount = geometry.index.count;
     const meshVertCount = geometry.attributes.position.count;
     const batchIndicesArray = this.geometry.index.array;
     const batchIndicesOffset = this.geometry.drawRange.count;
 
+    console.log("add mesh", instanceId, meshVertCount, meshIndicesCount);
+
     for (let i = 0; i < meshIndicesCount; i++) {
       batchIndicesArray[batchIndicesOffset + i] = meshIndices[i] + this.vertCount;
     }
     // meshIndiciesAttribute.setArray(batchIndicesArray.subarray(batchIndicesOffset, batchIndicesOffset + meshIndicesCount))
 
-    this.geometry.attributes.instance.array.fill(this.instanceCount, this.vertCount, this.vertCount + meshVertCount);
+    this.geometry.attributes.instance.array.fill(instanceId, this.vertCount, this.vertCount + meshVertCount);
     this.geometry.attributes.instance.needsUpdate = true;
 
     const meshPositionsAttribute = geometry.attributes.position;
@@ -209,25 +213,27 @@ export class UnlitBatch extends Mesh {
       // this.baseColorMapCtx.globalCompositeOperation = "source-over";
       // this.baseColorMapCtx.drawImage(
       //   material.map.image,
-      //   (this.instanceCount % this.atlasSize) * this.textureResolution,
-      //   Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
+      //   (instanceId % this.atlasSize) * this.textureResolution,
+      //   Math.floor(instanceId / this.atlasSize) * this.textureResolution,
       //   this.textureResolution,
       //   this.textureResolution
       // );
 
       const textureId = batchUniforms.map.value.addImage(
         material.map.image,
-        batchUniforms.uvTransforms.value[this.instanceCount]
+        batchUniforms.uvTransforms.value[instanceId]
       );
-      this.textureIds[this.instanceCount] = textureId;
+      this.textureIds.push(textureId);
+    } else {
+      this.textureIds.push(null);
     }
 
     // if (material.emissiveMap && material.emissiveMap.image) {
     //   this.baseColorMapCtx.globalCompositeOperation = "lighter";
     //   this.baseColorMapCtx.drawImage(
     //     material.emissiveMap.image,
-    //     (this.instanceCount % this.atlasSize) * this.textureResolution,
-    //     Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
+    //     (instanceId % this.atlasSize) * this.textureResolution,
+    //     Math.floor(instanceId / this.atlasSize) * this.textureResolution,
     //     this.textureResolution,
     //     this.textureResolution
     //   );
@@ -239,8 +245,8 @@ export class UnlitBatch extends Mesh {
     //   this.baseColorMapCtx.globalCompositeOperation = "lighter"
     //   this.baseColorMapCtx.drawImage(
     //     material.aoMap.image,
-    //     this.instanceCount % this.atlasSize * this.textureResolution,
-    //     Math.floor(this.instanceCount / this.atlasSize) * this.textureResolution,
+    //     instanceId % this.atlasSize * this.textureResolution,
+    //     Math.floor(instanceId / this.atlasSize) * this.textureResolution,
     //     this.textureResolution,
     //     this.textureResolution
     //   );
@@ -248,29 +254,78 @@ export class UnlitBatch extends Mesh {
 
     // batchUniforms.map.value.needsUpdate = true;
 
-    batchUniforms.transforms.value[this.instanceCount].copy(mesh.matrixWorld);
+    batchUniforms.transforms.value[instanceId].copy(mesh.matrixWorld);
 
     if (material.color) {
-      batchUniforms.colors.value[this.instanceCount].copy(material.color);
+      batchUniforms.colors.value[instanceId].copy(material.color);
     } else {
-      batchUniforms.colors.value[this.instanceCount].setRGB(1, 1, 1);
+      batchUniforms.colors.value[instanceId].setRGB(1, 1, 1);
     }
     this.material.needsUpdate = true;
 
     // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
     mesh.layers.disable(0);
 
-    this.meshes[this.instanceCount] = mesh;
+    this.meshes.push(mesh);
     this.instanceCount++;
   }
 
   removeMesh(mesh) {
     const idx = this.meshes.indexOf(mesh);
+    console.log("Removing", idx);
+
+    let preVertCount = 0;
+    let preIndexCount = 0;
+    for (let i = 0; i < idx; i++) {
+      const geometry = this.meshes[i].geometry;
+      preVertCount += geometry.attributes.position.count;
+      preIndexCount += geometry.index.count;
+    }
+
+    const vertCount = mesh.geometry.attributes.position.count;
+    const batchAttributes = this.geometry.attributes;
+    batchAttributes.instance.array.copyWithin(preVertCount, preVertCount + vertCount);
+    batchAttributes.instance.needsUpdate = true;
+    batchAttributes.position.array.copyWithin(preVertCount * 3, (preVertCount + vertCount) * 3);
+    batchAttributes.position.needsUpdate = true;
+    batchAttributes.color.array.copyWithin(preVertCount * 3, (preVertCount + vertCount) * 3);
+    batchAttributes.color.needsUpdate = true;
+    batchAttributes.uv.array.copyWithin(preVertCount * 2, (preVertCount + vertCount) * 2);
+    batchAttributes.uv.needsUpdate = true;
+    this.vertCount -= vertCount;
+
+    const indexCount = mesh.geometry.index.count;
+    const batchIndexArray = this.geometry.index.array;
+    this.geometry.setDrawRange(0, this.geometry.drawRange.count - indexCount);
+    for (let i = preIndexCount; i < this.geometry.drawRange.count; i++) {
+      batchIndexArray[i] = batchIndexArray[i + indexCount] - vertCount;
+    }
+    this.geometry.index.needsUpdate = true;
+
     const batchUniforms = this.material.uniforms;
-    batchUniforms.map.value.removeImage(this.textureIds[idx]);
-    // TODO this is just hidng the mesh, we want to reclaim space in the batch
-    batchUniforms.transforms.value[idx].copy(HIDE_MATRIX);
-    this.meshes[idx] = null;
+    this.textureIds[idx] !== null && batchUniforms.map.value.removeImage(this.textureIds[idx]);
+    // batchUniforms.map.value.copyWithin(idx, idx+1)
+    batchUniforms.transforms.value.copyWithin(idx, idx + 1);
+    batchUniforms.colors.value.copyWithin(idx, idx + 1);
+    batchUniforms.uvTransforms.value.copyWithin(idx, idx + 1);
+    this.material.needsUpdate = true;
+
+    this.meshes.splice(idx, 1);
+    this.textureIds.splice(idx, 1);
+    this.instanceCount--;
+
+    console.log(
+      preVertCount,
+      preIndexCount,
+      vertCount,
+      indexCount,
+      this.geometry.drawRange.count,
+      batchAttributes,
+      batchUniforms,
+      this.geometry.index,
+      this.meshes,
+      this.textureIds
+    );
   }
 
   update() {
@@ -278,7 +333,6 @@ export class UnlitBatch extends Mesh {
 
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
-      if (!mesh) continue;
       mesh.updateMatrices && mesh.updateMatrices();
       //TODO need to account for nested visibility deeper than 1 level
       uniforms.transforms.value[i].copy(mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
