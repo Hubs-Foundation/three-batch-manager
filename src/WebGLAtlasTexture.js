@@ -41,7 +41,7 @@ export default class WebGLAtlasTexture extends Texture {
     console.log(textureProperties);
 
     if (!textureProperties.__webglInit) {
-      const textureType = this.arrayDepth ? _gl.TEXTURE_3D_ARRAY : _gl.TEXTURE_2D;
+      const textureType = this.arrayDepth ? _gl.TEXTURE_2D_ARRAY : _gl.TEXTURE_2D;
 
       console.log("allocating");
       this.glTexture = _gl.createTexture();
@@ -142,7 +142,7 @@ export default class WebGLAtlasTexture extends Texture {
     const _gl = this.renderer.context;
     const slot = 0;
 
-    const textureType = this.arrayDepth ? _gl.TEXTURE_3D_ARRAY : _gl.TEXTURE_2D;
+    const textureType = this.arrayDepth ? _gl.TEXTURE_2D_ARRAY : _gl.TEXTURE_2D;
 
     state.activeTexture(_gl.TEXTURE0 + slot);
     state.bindTexture(textureType, this.glTexture);
