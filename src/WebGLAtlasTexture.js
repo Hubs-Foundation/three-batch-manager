@@ -1,14 +1,10 @@
-import { NearestFilter, Texture } from "three";
+import { Texture } from "three";
 
 export default class WebGLAtlasTexture extends Texture {
-  constructor(renderer, atlasResolution = 4096, textureResolution = 1024) {
+  constructor(renderer, atlasResolution = 1024, textureResolution = 1024) {
     super();
 
-    this.minFilter = NearestFilter;
-    this.magFilter = NearestFilter;
     this.renderer = renderer;
-    this.mipmaps = [];
-    this.generateMipmaps = false;
 
     this.canvas = document.createElement("canvas");
     this.canvas.width = this.canvas.height = textureResolution;
@@ -23,6 +19,8 @@ export default class WebGLAtlasTexture extends Texture {
     this.freedIndicies = [];
 
     this.flipY = false;
+
+    this.arrayDepth = 16;
 
     console.log("atlas", this);
 
@@ -43,34 +41,51 @@ export default class WebGLAtlasTexture extends Texture {
     console.log(textureProperties);
 
     if (!textureProperties.__webglInit) {
+      const textureType = this.arrayDepth ? _gl.TEXTURE_3D_ARRAY : _gl.TEXTURE_2D;
+
       console.log("allocating");
       this.glTexture = _gl.createTexture();
       textureProperties.__webglTexture = this.glTexture;
       textureProperties.__webglInit = true;
 
       state.activeTexture(_gl.TEXTURE0 + slot);
-      state.bindTexture(_gl.TEXTURE_2D, this.glTexture);
+      state.bindTexture(textureType, this.glTexture);
 
       _gl.pixelStorei(_gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
       _gl.pixelStorei(_gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
       _gl.pixelStorei(_gl.UNPACK_ALIGNMENT, this.unpackAlignment);
 
-      _gl.texParameteri(_gl.TEXTURE_2D, _gl.TEXTURE_WRAP_S, _gl.CLAMP_TO_EDGE);
-      _gl.texParameteri(_gl.TEXTURE_2D, _gl.TEXTURE_WRAP_T, _gl.CLAMP_TO_EDGE);
-      _gl.texParameteri(_gl.TEXTURE_2D, _gl.TEXTURE_MAG_FILTER, _gl.LINEAR);
-      _gl.texParameteri(_gl.TEXTURE_2D, _gl.TEXTURE_MIN_FILTER, _gl.LINEAR);
+      _gl.texParameteri(textureType, _gl.TEXTURE_WRAP_S, _gl.CLAMP_TO_EDGE);
+      _gl.texParameteri(textureType, _gl.TEXTURE_WRAP_T, _gl.CLAMP_TO_EDGE);
+      _gl.texParameteri(textureType, _gl.TEXTURE_MAG_FILTER, _gl.LINEAR);
+      _gl.texParameteri(textureType, _gl.TEXTURE_MIN_FILTER, _gl.LINEAR);
 
-      state.texImage2D(
-        _gl.TEXTURE_2D,
-        0,
-        _gl.RGBA,
-        this.atlasResolution,
-        this.atlasResolution,
-        0,
-        _gl.RGBA,
-        _gl.UNSIGNED_BYTE,
-        null
-      );
+      if (this.arrayDepth) {
+        state.texImage3D(
+          _gl.TEXTURE_2D_ARRAY,
+          0,
+          _gl.RGBA,
+          this.atlasResolution,
+          this.atlasResolution,
+          this.arrayDepth,
+          0,
+          _gl.RGBA,
+          _gl.UNSIGNED_BYTE,
+          null
+        );
+      } else {
+        state.texImage2D(
+          _gl.TEXTURE_2D,
+          0,
+          _gl.RGBA,
+          this.atlasResolution,
+          this.atlasResolution,
+          0,
+          _gl.RGBA,
+          _gl.UNSIGNED_BYTE,
+          null
+        );
+      }
 
       textureProperties.__maxMipLevel = 0;
 
@@ -112,7 +127,7 @@ export default class WebGLAtlasTexture extends Texture {
     const texIdxX = textureIdx % this.rows;
     const texIdxY = Math.floor(textureIdx / this.colls);
 
-    this.uploadImage(texIdxX, texIdxY, imgToUpload);
+    this.uploadImage(textureIdx, imgToUpload);
 
     uvTransform.setUvTransform(
       texIdxX / this.rows,
@@ -127,26 +142,47 @@ export default class WebGLAtlasTexture extends Texture {
     return textureIdx;
   }
 
-  uploadImage(x, y, img) {
+  uploadImage(textureIdx, img) {
     const state = this.renderer.state;
     const _gl = this.renderer.context;
     const slot = 0;
 
+    const textureType = this.arrayDepth ? _gl.TEXTURE_3D_ARRAY : _gl.TEXTURE_2D;
+
     state.activeTexture(_gl.TEXTURE0 + slot);
-    state.bindTexture(_gl.TEXTURE_2D, this.glTexture);
+    state.bindTexture(textureType, this.glTexture);
 
     _gl.pixelStorei(_gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
     _gl.pixelStorei(_gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
     _gl.pixelStorei(_gl.UNPACK_ALIGNMENT, this.unpackAlignment);
-    _gl.texSubImage2D(
-      _gl.TEXTURE_2D,
-      0,
-      x * this.textureResolution,
-      y * this.textureResolution,
-      _gl.RGBA,
-      _gl.UNSIGNED_BYTE,
-      img
-    );
+
+    if (this.arrayDepth) {
+      _gl.texSubImage3D(
+        _gl.TEXTURE_2D_ARRAY,
+        0,
+        this.atlasResolution,
+        this.atlasResolution,
+        this.arrayDepth,
+        img.width,
+        img.height,
+        1,
+        _gl.RGBA,
+        _gl.UNSIGNED_BYTE,
+        img
+      );
+    } else {
+      const x = textureIdx % this.rows;
+      const y = Math.floor(textureIdx / this.colls);
+      _gl.texSubImage2D(
+        _gl.TEXTURE_2D,
+        0,
+        x * this.textureResolution,
+        y * this.textureResolution,
+        _gl.RGBA,
+        _gl.UNSIGNED_BYTE,
+        img
+      );
+    }
   }
 
   removeImage(textureIdx) {
