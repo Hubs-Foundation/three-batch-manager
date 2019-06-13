@@ -153,17 +153,17 @@ export default class WebGLAtlasTexture extends Texture {
 
     if (this.arrayDepth) {
       _gl.texSubImage3D(
-        _gl.TEXTURE_2D_ARRAY,
-        0,
-        this.atlasResolution,
-        this.atlasResolution,
-        this.arrayDepth,
-        img.width,
-        img.height,
-        1,
-        _gl.RGBA,
-        _gl.UNSIGNED_BYTE,
-        img
+        _gl.TEXTURE_2D_ARRAY, // target
+        0, // level
+        0, // xoffset
+        0, // yoffset
+        textureIdx, // zoffset
+        img.width, // width
+        img.height, // height
+        1, // depth
+        _gl.RGBA, // format
+        _gl.UNSIGNED_BYTE, // type
+        img // pixels
       );
     } else {
       const x = textureIdx % this.rows;
