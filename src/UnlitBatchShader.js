@@ -5,7 +5,7 @@ import { RawUniformsGroup } from "three";
  * https://github.com/giniedp/vscode-glsl-literal
  **/
 
-const glsl = x => x;
+const glsl = x => x.join();
 
 export const INSTANCE_DATA_BYTE_LENGTH = 100
 
@@ -63,7 +63,7 @@ in vec3 color;
 in vec2 uv;
 
 out vec2 vUv;
-out vec3 vColor;
+out vec4 vColor;
 flat out uint vMapIdx;
 
 #ifdef TEXTURE_TRANSFORM
@@ -72,9 +72,9 @@ flat out vec4 vUVTransform;
 
 void main() {
   #ifdef PSEUDO_INSTANCING
-  int instanceIndex = instance;
+  uint instanceIndex = instance;
   #elif
-  int instanceIndex = gl_InstanceID;
+  uint instanceIndex = gl_InstanceID;
   #endif
 
   vUv = uv;
@@ -82,7 +82,7 @@ void main() {
   vColor = instanceData.colors[instanceIndex];
 
   #ifdef VERTEX_COLORS
-  vColor *= color; 
+  vColor *= vec4(color, 1.0); 
   #endif
 
   #ifdef TEXTURE_TRANSFORM
@@ -102,14 +102,14 @@ precision highp sampler2DArray;
 uniform sampler2DArray map;
 
 in vec2 vUv;
-in vec3 vColor;
-flat in int vMapIdx;
+in vec4 vColor;
+flat in uint vMapIdx;
 
 #ifdef TEXTURE_TRANSFORM
 flat in vec4 vUVTransform;
 #endif
 
-out outColor;
+out vec4 outColor;
 
 void main() {
   vec2 uv = vUv;
@@ -120,6 +120,6 @@ void main() {
   uv = fract((uv - uvMin) / uvScale) * uvScale + uvMin;
   #endif
 
-  outColor = texture(map, vec3(uv, vMapIdx)) * vec4(vColor, 1.0);
+  outColor = texture(map, vec3(uv, vMapIdx)) * vColor;
 }
 `;

@@ -4,8 +4,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { BatchManager } from "../src/index";
 
 const canvas = document.getElementById("canvas");
+const context = canvas.getContext("webgl2", { antialias: true });
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+const renderer = new THREE.WebGLRenderer({ canvas, context });
 renderer.debug.checkShaderErrors = true;
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);

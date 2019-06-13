@@ -16,7 +16,7 @@ export class UnlitBatch extends Mesh {
         enableVertexColors: true,
         enableTextureTransform: false,
         pseudoInstancing: true,
-        maxInstances: 1024
+        maxInstances: 512
       },
       options
     );
@@ -52,7 +52,9 @@ export class UnlitBatch extends Mesh {
         instanceData: {
           value: ubo.uniformsGroup
         },
-        map: baseAtlas
+        map: {
+          value: baseAtlas
+        }
       }
     });
     console.log(material);
@@ -155,7 +157,7 @@ export class UnlitBatch extends Mesh {
       //   this.textureResolution
       // );
 
-      const textureId = this.material.map.value.addImage(
+      const textureId = this.material.uniforms.map.value.addImage(
         material.map.image,
         VEC4_ARRAY
       );
@@ -193,7 +195,7 @@ export class UnlitBatch extends Mesh {
 
     // batchUniforms.map.value.needsUpdate = true;
 
-    this.setInstanceTransform(mesh.matrixWorld);
+    this.setInstanceTransform(instanceId, mesh.matrixWorld);
 
     if (material.color) {
       this.setInstanceColor(material.color, material.opacity);
