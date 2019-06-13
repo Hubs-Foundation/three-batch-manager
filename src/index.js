@@ -1,62 +1,10 @@
-import { Mesh, RawShaderMaterial, BufferGeometry, Matrix4, Matrix3, Color, BufferAttribute } from "three";
+import { Mesh, RawShaderMaterial, BufferGeometry, Matrix4, BufferAttribute, Color } from "three";
 import WebGLAtlasTexture from "./WebGLAtlasTexture";
-
-function createShader(maxMeshes) {
-  return {
-    vertexShader: `
-    precision highp float;
-    precision highp int;
-
-    #define MAX_MESHES ${maxMeshes}
-
-    uniform mat4 viewMatrix;
-    uniform mat4 projectionMatrix;
-    uniform mat4 transforms[MAX_MESHES];
-    uniform vec3 colors[MAX_MESHES];
-    uniform mat3 uvTransforms[MAX_MESHES];
-
-    attribute vec3 position;
-    attribute float instance;
-    attribute vec3 color;
-    attribute vec2 uv;
-
-    varying vec2 vUv;
-    varying vec2 vUvMin;
-    varying vec2 vUvScale;
-    varying vec3 vColor;
-
-    void main() {
-      highp int instanceIndex = int(instance);
-      mat3 uvTransform = uvTransforms[instanceIndex];
-      vUv = (uvTransform * vec3( uv, 1 )).xy;
-      vUvMin = uvTransform[2].xy;
-      vUvScale = vec2(uvTransform[0][0], uvTransform[1][1]);
-      vColor = color * colors[instanceIndex];
-      gl_Position = projectionMatrix * viewMatrix * transforms[instanceIndex] * vec4(position, 1.0);
-    }
-    `,
-
-    fragmentShader: `
-    precision highp float;
-    precision highp int;
-
-    uniform sampler2D map;
-
-    varying vec2 vUv;
-    varying vec2 vUvMin;
-    varying vec2 vUvScale;
-    varying vec3 vColor;
-
-    void main() {
-      vec2 uv = vUv;
-      uv = fract((uv - vUvMin) / vUvScale) * vUvScale + vUvMin;
-      gl_FragColor = texture2D(map, uv) * vec4(vColor, 1.0);
-    }
-    `
-  };
-}
+import { createUBO, vertexShader, fragmentShader } from "./UnlitBatchShader";
 
 const HIDE_MATRIX = new Matrix4().makeScale(0, 0, 0);
+const DEFAULT_COLOR = new Color(1, 1, 1);
+const VEC4_ARRAY = [0, 0, 0];
 
 export class UnlitBatch extends Mesh {
   constructor(options = {}) {
@@ -65,7 +13,10 @@ export class UnlitBatch extends Mesh {
         textureResolution: 1024,
         atlasSize: 4,
         maxVertsPerDraw: 65536,
-        enableVertexColors: true
+        enableVertexColors: true,
+        enableTextureTransform: false,
+        pseudoInstancing: true,
+        maxInstances: 1024
       },
       options
     );
@@ -84,35 +35,24 @@ export class UnlitBatch extends Mesh {
     geometry.setIndex(new BufferAttribute(new Uint16Array(_options.maxVertsPerDraw), 1));
     geometry.setDrawRange(0, 0);
 
-    const transforms = [];
-    const uvTransforms = [];
-    const colors = [];
-
-    for (let i = 0; i < maxMeshes; i++) {
-      transforms.push(new Matrix4());
-      uvTransforms.push(new Matrix3());
-      colors.push(new Color());
-    }
-
-    // const baseColorMapCanvas = document.createElement("canvas");
-    // const baseColorMapTexture = new CanvasTexture(baseColorMapCanvas);
-    // baseColorMapTexture.flipY = false; // GLTFLoader sets this to false
-    // baseColorMapCanvas.style.position = "absolute";
-    // baseColorMapCanvas.style.top = 0;
-    // baseColorMapCanvas.style.left = 0;
-    // baseColorMapCanvas.style.width = "512px";
+    const ubo = createUBO(_options.maxInstances);
 
     const baseAtlas = new WebGLAtlasTexture(options.renderer);
 
-    // document.body.appendChild(baseColorMapCanvas);
-
     const material = new RawShaderMaterial({
-      ...createShader(maxMeshes),
+      vertexShader,
+      fragmentShader,
+      defines: {
+        MAX_INSTANCES: _options.maxInstances,
+        TEXTURE_TRANSFORM: _options.enableTextureTransform,
+        PSEUDO_INSTANCING: _options.pseudoInstancing,
+        VERTEX_COLORS: _options.enableVertexColors
+      },
       uniforms: {
-        map: { value: baseAtlas },
-        transforms: { value: transforms },
-        colors: { value: colors },
-        uvTransforms: { value: uvTransforms }
+        instanceData: {
+          value: ubo.uniformsGroup
+        },
+        map: baseAtlas
       }
     });
     console.log(material);
@@ -132,16 +72,12 @@ export class UnlitBatch extends Mesh {
 
     this.frustumCulled = false;
 
-    // this.baseColorMapCanvas = baseColorMapCanvas;
-    // this.baseColorMapCanvas.width = this.textureResolution * this.atlasSize;
-    // this.baseColorMapCanvas.height = this.textureResolution * this.atlasSize;
-    // this.baseColorMapCtx = this.baseColorMapCanvas.getContext("2d");
+    this.ubo = ubo;
   }
 
   addMesh(mesh) {
     const geometry = mesh.geometry;
     const material = mesh.material;
-    const batchUniforms = this.material.uniforms;
 
     mesh.updateMatrixWorld(true);
 
@@ -219,10 +155,13 @@ export class UnlitBatch extends Mesh {
       //   this.textureResolution
       // );
 
-      const textureId = batchUniforms.map.value.addImage(
+      const textureId = this.material.map.value.addImage(
         material.map.image,
-        batchUniforms.uvTransforms.value[instanceId]
+        VEC4_ARRAY
       );
+
+      this.setInstanceUVTransform(instanceId, VEC4_ARRAY);
+
       this.textureIds.push(textureId);
     } else {
       this.textureIds.push(null);
@@ -254,13 +193,14 @@ export class UnlitBatch extends Mesh {
 
     // batchUniforms.map.value.needsUpdate = true;
 
-    batchUniforms.transforms.value[instanceId].copy(mesh.matrixWorld);
+    this.setInstanceTransform(mesh.matrixWorld);
 
     if (material.color) {
-      batchUniforms.colors.value[instanceId].copy(material.color);
+      this.setInstanceColor(material.color, material.opacity);
     } else {
-      batchUniforms.colors.value[instanceId].setRGB(1, 1, 1);
+      this.setInstanceColor(DEFAULT_COLOR, 1);
     }
+
     this.material.needsUpdate = true;
 
     // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
@@ -271,6 +211,7 @@ export class UnlitBatch extends Mesh {
   }
 
   removeMesh(mesh) {
+    const ubo = this.ubo;
     const idx = this.meshes.indexOf(mesh);
     console.log("Removing", idx);
 
@@ -308,12 +249,11 @@ export class UnlitBatch extends Mesh {
     }
     this.geometry.index.needsUpdate = true;
 
-    const batchUniforms = this.material.uniforms;
-    this.textureIds[idx] !== null && batchUniforms.map.value.removeImage(this.textureIds[idx]);
+    this.textureIds[idx] !== null && this.material.uniforms.map.value.removeImage(this.textureIds[idx]);
     // batchUniforms.map.value.copyWithin(idx, idx+1)
-    batchUniforms.transforms.value.copyWithin(idx, idx + 1);
-    batchUniforms.colors.value.copyWithin(idx, idx + 1);
-    batchUniforms.uvTransforms.value.copyWithin(idx, idx + 1);
+    ubo.transforms.copyWithin(idx * 16, idx * 16 + 1);
+    ubo.colors.copyWithin(idx * 4, idx * 4 + 1);
+    ubo.uvTransforms.copyWithin(idx * 4, idx * 4 + 1);
     this.material.needsUpdate = true;
 
     this.meshes.splice(idx, 1);
@@ -327,7 +267,7 @@ export class UnlitBatch extends Mesh {
       indexCount,
       this.geometry.drawRange.count,
       batchAttributes,
-      batchUniforms,
+      this.ubo,
       this.geometry.index,
       this.meshes,
       this.textureIds
@@ -335,20 +275,34 @@ export class UnlitBatch extends Mesh {
   }
 
   update() {
-    const uniforms = this.material.uniforms;
-
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
       mesh.updateMatrices && mesh.updateMatrices();
       //TODO need to account for nested visibility deeper than 1 level
-      uniforms.transforms.value[i].copy(mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
+      this.setInstanceTransform(i, mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
 
       if (mesh.material.color) {
-        uniforms.colors.value[i].copy(mesh.material.color);
+        this.setInstanceColor(i, mesh.material.color);
       } else {
-        uniforms.colors.value[i].setRGB(1, 1, 1);
+        this.setInstanceColor(i, DEFAULT_COLOR, 1);
       }
     }
+  }
+
+  setInstanceColor(instanceId, color, opacity) {
+    VEC4_ARRAY[0] = color.r;
+    VEC4_ARRAY[1] = color.g;
+    VEC4_ARRAY[2] = color.b;
+    VEC4_ARRAY[3] = opacity;
+    this.ubo.colors.set(VEC4_ARRAY, instanceId * 4);
+  }
+
+  setInstanceTransform(instanceId, matrixWorld) {
+    this.ubo.transforms.set(matrixWorld.elements, instanceId * 16);
+  }
+
+  setInstanceUVTransform(instanceId, transformVec4) {
+    this.ubo.uvTransforms.set(transformVec4, instanceId * 4);
   }
 }
 
