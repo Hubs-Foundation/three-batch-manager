@@ -49,14 +49,13 @@ export class UnlitBatch extends Mesh {
         VERTEX_COLORS: _options.enableVertexColors
       },
       uniforms: {
-        instanceData: {
-          value: ubo.uniformsGroup
-        },
         map: {
           value: baseAtlas
         }
       }
     });
+
+    material.uniformsGroups = [ubo.uniformsGroup];
     console.log(material);
 
     super(geometry, material);
@@ -163,6 +162,8 @@ export class UnlitBatch extends Mesh {
       );
 
       this.setInstanceUVTransform(instanceId, VEC4_ARRAY);
+      console.log("textureId", textureId);
+      this.setInstanceMapIndex(instanceId, textureId);
 
       this.textureIds.push(textureId);
     } else {
@@ -196,13 +197,7 @@ export class UnlitBatch extends Mesh {
     // batchUniforms.map.value.needsUpdate = true;
 
     this.setInstanceTransform(instanceId, mesh.matrixWorld);
-
-    if (material.color) {
-      this.setInstanceColor(material.color, material.opacity);
-    } else {
-      this.setInstanceColor(DEFAULT_COLOR, 1);
-    }
-
+    this.setInstanceColor(instanceId, material.color || DEFAULT_COLOR, material.opacity || 1);
     this.material.needsUpdate = true;
 
     // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
@@ -282,12 +277,7 @@ export class UnlitBatch extends Mesh {
       mesh.updateMatrices && mesh.updateMatrices();
       //TODO need to account for nested visibility deeper than 1 level
       this.setInstanceTransform(i, mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
-
-      if (mesh.material.color) {
-        this.setInstanceColor(i, mesh.material.color);
-      } else {
-        this.setInstanceColor(i, DEFAULT_COLOR, 1);
-      }
+      this.setInstanceColor(i, mesh.material.color || DEFAULT_COLOR, mesh.material.opacity || 1);
     }
   }
 
@@ -296,6 +286,7 @@ export class UnlitBatch extends Mesh {
     VEC4_ARRAY[1] = color.g;
     VEC4_ARRAY[2] = color.b;
     VEC4_ARRAY[3] = opacity;
+
     this.ubo.colors.set(VEC4_ARRAY, instanceId * 4);
   }
 
@@ -305,6 +296,10 @@ export class UnlitBatch extends Mesh {
 
   setInstanceUVTransform(instanceId, transformVec4) {
     this.ubo.uvTransforms.set(transformVec4, instanceId * 4);
+  }
+
+  setInstanceMapIndex(instanceId, mapIndex) {
+    this.ubo.mapIndices[instanceId * 4] = mapIndex;
   }
 }
 

@@ -7,11 +7,12 @@ import { RawUniformsGroup } from "three";
 
 const glsl = x => x.join();
 
-export const INSTANCE_DATA_BYTE_LENGTH = 100
+export const INSTANCE_DATA_BYTE_LENGTH = 112;
 
 export function createUBO(maxInstances) {
   const uniformsBuffer = new ArrayBuffer(maxInstances * INSTANCE_DATA_BYTE_LENGTH);
   const uniformsGroup = new RawUniformsGroup(uniformsBuffer);
+  uniformsGroup.setName("InstanceData");
   
   let offset = 0;
   
@@ -24,7 +25,7 @@ export function createUBO(maxInstances) {
   const uvTransforms = new Float32Array(uniformsBuffer, offset, 4 * maxInstances);
   offset += uvTransforms.byteLength;
 
-  const mapIndices = new Uint32Array(uniformsBuffer, offset, maxInstances);
+  const mapIndices = new Uint32Array(uniformsBuffer, offset, 4 * maxInstances);
 
   return {
     uniformsGroup,
@@ -53,7 +54,7 @@ layout(std140) uniform InstanceData {
 in vec3 position;
 
 #ifdef PSEUDO_INSTANCING
-in uint instance;
+in float instance;
 #endif
 
 #ifdef VERTEX_COLORS
@@ -72,7 +73,7 @@ flat out vec4 vUVTransform;
 
 void main() {
   #ifdef PSEUDO_INSTANCING
-  uint instanceIndex = instance;
+  uint instanceIndex = uint(instance);
   #elif
   uint instanceIndex = gl_InstanceID;
   #endif
