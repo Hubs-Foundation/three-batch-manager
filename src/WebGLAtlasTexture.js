@@ -129,15 +129,10 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.uploadImage(textureIdx, imgToUpload);
 
-    uvTransform.setUvTransform(
-      texIdxX / this.rows,
-      texIdxY / this.colls,
-      (1 / this.rows) * (width / this.textureResolution),
-      (1 / this.colls) * (height / this.textureResolution),
-      0,
-      0,
-      0
-    );
+    uvTransform[0] = texIdxX / this.rows;
+    uvTransform[1] = texIdxY / this.colls;
+    uvTransform[2] = (1 / this.rows) * (width / this.textureResolution);
+    uvTransform[3] = (1 / this.colls) * (height / this.textureResolution);
 
     return textureIdx;
   }
