@@ -12,15 +12,15 @@
     "three": "^0.104.0"
   },
   "devDependencies": {
-    "three": "^0.104.0",
-    "html-webpack-plugin": "^3.2.0",
-    "webpack": "^4.30.0",
-    "webpack-cli": "^3.3.1",
-    "webpack-dev-server": "^3.3.1",
     "babel-eslint": "^10.0.1",
     "eslint": "^5.16.0",
     "eslint-config-prettier": "^4.3.0",
     "eslint-plugin-prettier": "^3.1.0",
-    "prettier": "^1.18.2"
+    "html-webpack-plugin": "^3.2.0",
+    "prettier": "^1.18.2",
+    "three": "github:mozillareality/three.js#hubs/vao-ubo-prs",
+    "webpack": "^4.30.0",
+    "webpack-cli": "^3.3.1",
+    "webpack-dev-server": "^3.3.1"
   }
 }
