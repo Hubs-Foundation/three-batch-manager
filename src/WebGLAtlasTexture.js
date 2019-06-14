@@ -2,32 +2,33 @@ import { Texture, Math as ThreeMath } from "three";
 
 class Layer {
   constructor(size, rows, colls) {
+    this.freed = [];
     this.recycle(size, rows, colls);
   }
 
   recycle(size, rows, colls) {
     this.size = size;
     this.nextIdx = 0;
-    this.free = [];
+    this.freed.length = 0;
     this.rows = rows;
     this.colls = colls;
     this.maxIdx = rows * colls - 1;
   }
 
   nextId() {
-    return this.free.length ? this.free.pop() : this.nextIdx++;
+    return this.freed.length ? this.freed.pop() : this.nextIdx++;
   }
 
   freeId(idx) {
-    this.free.push(idx);
+    this.freed.push(idx);
   }
 
   isFull() {
-    return !this.free.length && this.nextIdx >= this.maxIdx;
+    return !this.freed.length && this.nextIdx >= this.maxIdx;
   }
 
   isEmpty() {
-    this.nextIdx = 0 || this.free.length === this.maxIdx;
+    return this.nextIdx === this.freed.length;
   }
 }
 
@@ -148,7 +149,8 @@ export default class WebGLAtlasTexture extends Texture {
       imgToUpload = this.canvas;
     }
 
-    const [layerIdx, atlasIdx] = this.nextId(size);
+    const id = this.nextId(size);
+    const [layerIdx, atlasIdx] = id;
 
     this.uploadImage(layerIdx, atlasIdx, imgToUpload);
 
@@ -161,7 +163,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
 
-    return layerIdx;
+    return id;
   }
 
   uploadImage(layerIdx, atlasIdx, img) {
@@ -193,7 +195,7 @@ export default class WebGLAtlasTexture extends Texture {
     );
   }
 
-  removeImage(layerIdx, atlasIdx) {
+  removeImage([layerIdx, atlasIdx]) {
     const layer = this.layers[layerIdx];
 
     this.canvas.width = this.canvas.height = layer.size;
@@ -202,10 +204,11 @@ export default class WebGLAtlasTexture extends Texture {
 
     layer.freeId(atlasIdx);
     if (layer.isEmpty()) {
+      console.log("Freeing layer", layer);
       this.freeLayers.push(layerIdx);
     }
 
-    console.log("Remove", layerIdx, atlasIdx, this.freeLayers);
+    console.log("Remove", layerIdx, atlasIdx, layer, this.freeLayers);
   }
 }
 

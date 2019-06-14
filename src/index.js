@@ -145,11 +145,10 @@ export class UnlitBatch extends Mesh {
       // );
 
       const textureId = this.material.uniforms.map.value.addImage(material.map.image, VEC4_ARRAY);
+      this.textureIds.push(textureId);
 
       this.setInstanceUVTransform(instanceId, VEC4_ARRAY);
-      this.setInstanceMapIndex(instanceId, textureId);
-
-      this.textureIds.push(textureId);
+      this.setInstanceMapIndex(instanceId, textureId[0]);
     } else {
       this.textureIds.push(null);
     }
@@ -230,11 +229,13 @@ export class UnlitBatch extends Mesh {
     }
     this.geometry.index.needsUpdate = true;
 
+    // TODO remove texture from atlas, requires us keeping track of layer + atlas idx
     this.textureIds[idx] !== null && this.material.uniforms.map.value.removeImage(this.textureIds[idx]);
-    // batchUniforms.map.value.copyWithin(idx, idx+1)
-    ubo.transforms.copyWithin(idx * 16, idx * 16 + 1);
-    ubo.colors.copyWithin(idx * 4, idx * 4 + 1);
-    ubo.uvTransforms.copyWithin(idx * 4, idx * 4 + 1);
+
+    ubo.transforms.copyWithin(idx * 16, (idx + 1) * 16);
+    ubo.colors.copyWithin(idx * 4, (idx + 1) * 4);
+    ubo.uvTransforms.copyWithin(idx * 4, (idx + 1) * 4);
+    ubo.mapIndices.copyWithin(idx * 4, (idx + 1) * 4);
     this.material.needsUpdate = true;
 
     this.meshes.splice(idx, 1);
