@@ -10,18 +10,13 @@ export class UnlitBatch extends Mesh {
   constructor(options = {}) {
     const _options = Object.assign(
       {
-        textureResolution: 1024,
-        atlasSize: 4,
         maxVertsPerDraw: 65536,
         enableVertexColors: true,
-        enableTextureTransform: false,
         pseudoInstancing: true,
         maxInstances: 512
       },
       options
     );
-
-    const maxMeshes = _options.atlasSize * _options.atlasSize;
 
     const geometry = new BufferGeometry();
     geometry.addAttribute("instance", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw), 1));
@@ -37,32 +32,26 @@ export class UnlitBatch extends Mesh {
 
     const ubo = createUBO(_options.maxInstances);
 
-    const baseAtlas = new WebGLAtlasTexture(options.renderer);
-
     const material = new RawShaderMaterial({
       vertexShader,
       fragmentShader,
       defines: {
         MAX_INSTANCES: _options.maxInstances,
-        TEXTURE_TRANSFORM: _options.enableTextureTransform,
         PSEUDO_INSTANCING: _options.pseudoInstancing,
         VERTEX_COLORS: _options.enableVertexColors
       },
       uniforms: {
-        map: {
-          value: baseAtlas
-        }
+        map: { value: _options.atlas }
       }
     });
 
     material.uniformsGroups = [ubo.uniformsGroup];
-    console.log(material);
 
     super(geometry, material);
 
     this.maxVertsPerDraw = _options.maxVertsPerDraw;
     this.enableVertexColors = _options.enableVertexColors;
-    this.maxMeshes = maxMeshes;
+    this.maxInstances = _options.maxInstances;
 
     this.textureIds = [];
 
@@ -145,7 +134,6 @@ export class UnlitBatch extends Mesh {
 
     this.geometry.index.needsUpdate = true;
 
-    console.log(material.map);
     if (material.map && material.map.image) {
       // this.baseColorMapCtx.globalCompositeOperation = "source-over";
       // this.baseColorMapCtx.drawImage(
@@ -156,13 +144,9 @@ export class UnlitBatch extends Mesh {
       //   this.textureResolution
       // );
 
-      const textureId = this.material.uniforms.map.value.addImage(
-        material.map.image,
-        VEC4_ARRAY
-      );
+      const textureId = this.material.uniforms.map.value.addImage(material.map.image, VEC4_ARRAY);
 
       this.setInstanceUVTransform(instanceId, VEC4_ARRAY);
-      console.log("textureId", textureId);
       this.setInstanceMapIndex(instanceId, textureId);
 
       this.textureIds.push(textureId);
@@ -210,7 +194,7 @@ export class UnlitBatch extends Mesh {
   removeMesh(mesh) {
     const ubo = this.ubo;
     const idx = this.meshes.indexOf(mesh);
-    console.log("Removing", idx);
+    console.log("Removing mesh from batch", idx);
 
     let preVertCount = 0;
     let preIndexCount = 0;
@@ -309,6 +293,7 @@ export class BatchManager {
     this.renderer = renderer;
     this.batches = [];
     this.batchForMesh = new WeakMap();
+    this.atlas = new WebGLAtlasTexture(renderer);
   }
 
   addMesh(mesh) {
@@ -319,7 +304,7 @@ export class BatchManager {
     for (let i = 0; i < this.batches.length; i++) {
       const batch = batches[i];
       if (
-        batch.instanceCount < batch.maxMeshes &&
+        batch.instanceCount < batch.maxInstances &&
         batch.geometry.drawRange.count + mesh.geometry.index.count < batch.maxVertsPerDraw &&
         batch.vertCount + mesh.geometry.attributes.position.count < batch.maxVertsPerDraw
       ) {
@@ -329,9 +314,10 @@ export class BatchManager {
     }
 
     if (nextBatch === null) {
-      nextBatch = new UnlitBatch({ renderer: this.renderer });
+      nextBatch = new UnlitBatch({ renderer: this.renderer, atlas: this.atlas });
       this.scene.add(nextBatch);
       this.batches.push(nextBatch);
+      console.log("Allocating new batch", this.batches.length);
     }
 
     nextBatch.addMesh(mesh);

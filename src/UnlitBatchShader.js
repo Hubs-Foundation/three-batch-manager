@@ -13,9 +13,9 @@ export function createUBO(maxInstances) {
   const uniformsBuffer = new ArrayBuffer(maxInstances * INSTANCE_DATA_BYTE_LENGTH);
   const uniformsGroup = new RawUniformsGroup(uniformsBuffer);
   uniformsGroup.setName("InstanceData");
-  
+
   let offset = 0;
-  
+
   const transforms = new Float32Array(uniformsBuffer, offset, 16 * maxInstances);
   offset += transforms.byteLength;
 
@@ -52,6 +52,7 @@ layout(std140) uniform InstanceData {
 } instanceData;
 
 in vec3 position;
+in vec2 uv;
 
 #ifdef PSEUDO_INSTANCING
 in float instance;
@@ -61,15 +62,11 @@ in float instance;
 in vec3 color;
 #endif
 
-in vec2 uv;
-
 out vec2 vUv;
 out vec4 vColor;
 flat out uint vMapIdx;
 
-#ifdef TEXTURE_TRANSFORM
 flat out vec4 vUVTransform;
-#endif
 
 void main() {
   #ifdef PSEUDO_INSTANCING
@@ -83,13 +80,11 @@ void main() {
   vColor = instanceData.colors[instanceIndex];
 
   #ifdef VERTEX_COLORS
-  vColor *= vec4(color, 1.0); 
+  vColor *= vec4(color, 1.0);
   #endif
 
-  #ifdef TEXTURE_TRANSFORM
-  vUVTransform = instanceData.uvTransform[instanceIndex];
-  #endif
-  
+  vUVTransform = instanceData.uvTransforms[instanceIndex];
+
   vMapIdx = instanceData.mapIndices[instanceIndex];
   gl_Position = projectionMatrix * viewMatrix * instanceData.transforms[instanceIndex] * vec4(position, 1.0);
 }
@@ -105,22 +100,14 @@ uniform sampler2DArray map;
 in vec2 vUv;
 in vec4 vColor;
 flat in uint vMapIdx;
-
-#ifdef TEXTURE_TRANSFORM
 flat in vec4 vUVTransform;
-#endif
 
 out vec4 outColor;
 
 void main() {
-  vec2 uv = vUv;
-
-  #ifdef TEXTURE_TRANSFORM
-  vec2 uvScale = vUVTransform.xy;
-  vec2 uvMin = vUVTransform.zw;
-  uv = fract((uv - uvMin) / uvScale) * uvScale + uvMin;
-  #endif
-
+  vec2 uvMin = vUVTransform.xy;
+  vec2 uvScale = vUVTransform.zw;
+  vec2 uv = uvMin + (vUv * uvScale);
   outColor = texture(map, vec3(uv, vMapIdx)) * vColor;
 }
 `;
