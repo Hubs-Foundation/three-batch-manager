@@ -91,7 +91,7 @@ export default class WebGLAtlasTexture extends Texture {
     const _gl = this.renderer.context;
     const textureProperties = properties.get(this);
 
-    console.log("Allocating texture array, depth", arrayDepth);
+    // console.log("Allocating texture array, depth", arrayDepth);
     this.glTexture = _gl.createTexture();
     textureProperties.__webglTexture = this.glTexture;
     textureProperties.__webglInit = true;
@@ -107,6 +107,8 @@ export default class WebGLAtlasTexture extends Texture {
     _gl.texParameteri(_gl.TEXTURE_2D_ARRAY, _gl.TEXTURE_WRAP_T, _gl.CLAMP_TO_EDGE);
     _gl.texParameteri(_gl.TEXTURE_2D_ARRAY, _gl.TEXTURE_MAG_FILTER, _gl.LINEAR);
     _gl.texParameteri(_gl.TEXTURE_2D_ARRAY, _gl.TEXTURE_MIN_FILTER, _gl.LINEAR);
+
+    // _gl.texStorage3D(_gl.TEXTURE_2D_ARRAY, 1, _gl.RGBA8, this.textureResolution, this.textureResolution, arrayDepth);
 
     state.texImage3D(
       _gl.TEXTURE_2D_ARRAY,
@@ -144,7 +146,7 @@ export default class WebGLAtlasTexture extends Texture {
     let imgToUpload = img;
 
     if (width !== img.width || height !== img.height) {
-      console.warn("resizing image from", img.width, img.height, "to", width, height);
+      // console.warn("resizing image from", img.width, img.height, "to", width, height);
       this.canvas.width = width;
       this.canvas.height = height;
       this.canvasCtx.clearRect(0, 0, width, height);
@@ -164,7 +166,7 @@ export default class WebGLAtlasTexture extends Texture {
     uvTransform[2] = (1 / layer.colls) * (width / layer.size);
     uvTransform[3] = (1 / layer.rows) * (height / layer.size);
 
-    console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
+    // console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
 
     return id;
   }
@@ -206,7 +208,7 @@ export default class WebGLAtlasTexture extends Texture {
     _gl.pixelStorei(_gl.UNPACK_ALIGNMENT, this.unpackAlignment);
 
     const layer = this.layers[layerIdx];
-    console.log("Uploading image", layerIdx, atlasIdx, img.width, img.height);
+    // console.log("Uploading image", layerIdx, atlasIdx, img.width, img.height);
     _gl.texSubImage3D(
       _gl.TEXTURE_2D_ARRAY, // target
       0, // level
@@ -231,11 +233,11 @@ export default class WebGLAtlasTexture extends Texture {
 
     layer.freeId(atlasIdx);
     if (layer.isEmpty()) {
-      console.log("Freeing layer", layer);
+      // console.log("Freeing layer", layer);
       this.freeLayers.push(layerIdx);
     }
 
-    console.log("Remove", layerIdx, atlasIdx, layer, this.freeLayers);
+    // console.log("Remove", layerIdx, atlasIdx, layer, this.freeLayers);
   }
 }
 

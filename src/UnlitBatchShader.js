@@ -9,31 +9,58 @@ const glsl = x => x.join();
 
 export const INSTANCE_DATA_BYTE_LENGTH = 112;
 
-export function createUBO(maxInstances) {
-  const uniformsBuffer = new ArrayBuffer(maxInstances * INSTANCE_DATA_BYTE_LENGTH);
-  const uniformsGroup = new RawUniformsGroup(uniformsBuffer);
-  uniformsGroup.setName("InstanceData");
+const tempVec4Array = [0, 0, 0, 0];
+export class BatchRawUniformGroup extends RawUniformsGroup {
+  constructor(maxInstances, name = "InstanceData") {
+    super(new ArrayBuffer(maxInstances * INSTANCE_DATA_BYTE_LENGTH));
+    this.setName(name);
 
-  let offset = 0;
+    let offset = 0;
 
-  const transforms = new Float32Array(uniformsBuffer, offset, 16 * maxInstances);
-  offset += transforms.byteLength;
+    this.transforms = new Float32Array(this.data, offset, 16 * maxInstances);
+    offset += this.transforms.byteLength;
 
-  const colors = new Float32Array(uniformsBuffer, offset, 4 * maxInstances);
-  offset += colors.byteLength;
+    this.colors = new Float32Array(this.data, offset, 4 * maxInstances);
+    offset += this.colors.byteLength;
 
-  const uvTransforms = new Float32Array(uniformsBuffer, offset, 4 * maxInstances);
-  offset += uvTransforms.byteLength;
+    this.uvTransforms = new Float32Array(this.data, offset, 4 * maxInstances);
+    offset += this.uvTransforms.byteLength;
 
-  const mapIndices = new Uint32Array(uniformsBuffer, offset, 4 * maxInstances);
+    this.mapIndices = new Uint32Array(this.data, offset, 4 * maxInstances);
 
-  return {
-    uniformsGroup,
-    transforms,
-    colors,
-    uvTransforms,
-    mapIndices
-  };
+    this.nextIdx = 0;
+    this.freed = [];
+  }
+
+  nextId() {
+    return this.freed.length ? this.freed.pop() : this.nextIdx++;
+  }
+
+  freeId(idx) {
+    this.freed.push(idx);
+    console.log("freed instance", idx, this.freed);
+  }
+
+  setInstanceColor(instanceId, color, opacity) {
+    tempVec4Array[0] = color.r;
+    tempVec4Array[1] = color.g;
+    tempVec4Array[2] = color.b;
+    tempVec4Array[3] = opacity;
+
+    this.colors.set(tempVec4Array, instanceId * 4);
+  }
+
+  setInstanceTransform(instanceId, matrixWorld) {
+    this.transforms.set(matrixWorld.elements, instanceId * 16);
+  }
+
+  setInstanceUVTransform(instanceId, transformVec4) {
+    this.uvTransforms.set(transformVec4, instanceId * 4);
+  }
+
+  setInstanceMapIndex(instanceId, mapIndex) {
+    this.mapIndices[instanceId * 4] = mapIndex;
+  }
 }
 
 export const vertexShader = glsl`#version 300 es
