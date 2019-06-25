@@ -1,16 +1,16 @@
-import { Mesh, RawShaderMaterial, BufferGeometry, Matrix4, BufferAttribute, Color } from "three";
+import { Mesh, RawShaderMaterial, BufferGeometry, Matrix4, Color, Uint32BufferAttribute, Float32BufferAttribute } from "three";
 import WebGLAtlasTexture from "./WebGLAtlasTexture";
 import { createUBO, vertexShader, fragmentShader } from "./UnlitBatchShader";
 
 const HIDE_MATRIX = new Matrix4().makeScale(0, 0, 0);
 const DEFAULT_COLOR = new Color(1, 1, 1);
-const VEC4_ARRAY = [0, 0, 0];
+const VEC4_ARRAY = [0, 0, 0, 0];
 
 export class UnlitBatch extends Mesh {
   constructor(options = {}) {
     const _options = Object.assign(
       {
-        maxVertsPerDraw: 65536,
+        maxVertsPerDraw: 65536 * 2,
         enableVertexColors: true,
         pseudoInstancing: true,
         maxInstances: 512
@@ -19,15 +19,15 @@ export class UnlitBatch extends Mesh {
     );
 
     const geometry = new BufferGeometry();
-    geometry.addAttribute("instance", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw), 1));
-    geometry.addAttribute("position", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3), 3));
+    geometry.addAttribute("instance", new Float32BufferAttribute(new Float32Array(_options.maxVertsPerDraw), 1));
+    geometry.addAttribute("position", new Float32BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3), 3));
 
     if (_options.enableVertexColors) {
-      geometry.addAttribute("color", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3).fill(1), 3));
+      geometry.addAttribute("color", new Float32BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3).fill(1), 3));
     }
 
-    geometry.addAttribute("uv", new BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 2), 2));
-    geometry.setIndex(new BufferAttribute(new Uint16Array(_options.maxVertsPerDraw), 1));
+    geometry.addAttribute("uv", new Float32BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 2), 2));
+    geometry.setIndex(new Uint32BufferAttribute(new Uint32Array(_options.maxVertsPerDraw), 1));
     geometry.setDrawRange(0, 0);
 
     const ubo = createUBO(_options.maxInstances);
@@ -63,6 +63,8 @@ export class UnlitBatch extends Mesh {
     this.frustumCulled = false;
 
     this.ubo = ubo;
+
+    this.atlas= _options.atlas;
   }
 
   addMesh(mesh) {
@@ -150,6 +152,8 @@ export class UnlitBatch extends Mesh {
       this.setInstanceUVTransform(instanceId, VEC4_ARRAY);
       this.setInstanceMapIndex(instanceId, textureId[0]);
     } else {
+      this.setInstanceUVTransform(instanceId, this.atlas.nullTextureTransform)
+      this.setInstanceMapIndex(instanceId, this.atlas.nullTextureIndex);
       this.textureIds.push(null);
     }
 

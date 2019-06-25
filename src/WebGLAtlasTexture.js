@@ -52,6 +52,9 @@ export default class WebGLAtlasTexture extends Texture {
 
     // TODO this can start small and grow dynamically
     this.createTextureArray(16);
+
+    this.nullTextureTransform = [0, 0, 0, 0];
+    this.nullTextureIndex = this.addColorRect(64, "white", this.nullTextureTransform);
   }
 
   getLayerWithSpace(size) {
@@ -160,6 +163,30 @@ export default class WebGLAtlasTexture extends Texture {
     uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
     uvTransform[2] = (1 / layer.colls) * (width / layer.size);
     uvTransform[3] = (1 / layer.rows) * (height / layer.size);
+
+    console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
+
+    return id;
+  }
+
+  addColorRect(size, color, uvTransform) {
+    this.canvas.width = size;
+    this.canvas.height = size;
+    this.canvasCtx.fillStyle = color;
+    this.canvasCtx.fillRect(0, 0, size, size);
+    const imgToUpload = this.canvas;
+
+    const id = this.nextId(size);
+    const [layerIdx, atlasIdx] = id;
+
+    this.uploadImage(layerIdx, atlasIdx, imgToUpload);
+
+    const layer = this.layers[layerIdx];
+
+    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls;
+    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
+    uvTransform[2] = (1 / layer.colls) * (size / layer.size);
+    uvTransform[3] = (1 / layer.rows) * (size / layer.size);
 
     console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
 

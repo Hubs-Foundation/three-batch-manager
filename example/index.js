@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { BatchManager } from "../src/index";
+import { Vector3 } from "three";
 
 const canvas = document.getElementById("canvas");
 const context = canvas.getContext("webgl2", { antialias: true });
@@ -44,26 +45,35 @@ const batchManager = new BatchManager(scene, renderer);
 
 const mixers = [];
 
-new GLTFLoader().load("./MozAtrium.glb", gltf => {
-  gltf.scene.updateMatrixWorld(true);
-  gltf.scene.traverse(object => {
-    if (object.isMesh && !object.material.transparent) {
-      batchManager.addMesh(object);
+function loadGLTF(url, position, scale) {
+  new GLTFLoader().load(url, gltf => {
+    gltf.scene.position.copy(position);
+    gltf.scene.scale.setScalar(scale);
+    gltf.scene.updateMatrixWorld(true);
+
+    scene.add(gltf.scene);
+
+    gltf.scene.traverse(object => {
+      if (object.isMesh && !object.material.transparent) {
+        batchManager.addMesh(object);
+      }
+    });
+  
+    if (gltf.animations && gltf.animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(gltf.scene);
+  
+      gltf.animations.forEach(clip => {
+        mixer.clipAction(clip).play();
+      });
+  
+      mixers.push(mixer);
     }
   });
+}
 
-  if (gltf.animations && gltf.animations.length > 0) {
-    const mixer = new THREE.AnimationMixer(gltf.scene);
-
-    gltf.animations.forEach(clip => {
-      mixer.clipAction(clip).play();
-    });
-
-    mixers.push(mixer);
-  }
-
-  scene.add(gltf.scene);
-});
+//loadGLTF("./MozAtrium.glb", new Vector3(), 1);
+//loadGLTF("./MozAtrium.glb", new Vector3(), 1);
+loadGLTF("./BlocksTruck/model.gltf", new Vector3(0, 1, 0), 0.1);
 
 const clock = new THREE.Clock();
 
