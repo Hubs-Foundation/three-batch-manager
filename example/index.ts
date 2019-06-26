@@ -1,24 +1,38 @@
-import * as THREE from "three";
+import {
+  Vector3,
+  TextureLoader,
+  MeshBasicMaterial,
+  PlaneBufferGeometry,
+  Mesh,
+  DoubleSide,
+  AnimationMixer,
+  WebGLRenderer,
+  Scene,
+  PCFSoftShadowMap,
+  AmbientLight,
+  PerspectiveCamera,
+  Clock,
+  DirectionalLight
+} from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import { BatchManager } from "../dist/index";
-import { Vector3, TextureLoader, MeshBasicMaterial, PlaneBufferGeometry, Mesh, DoubleSide } from "three";
+import { BatchManager } from "../src/index";
 
-const canvas = document.getElementById("canvas");
+const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const context = canvas.getContext("webgl2", { antialias: true });
 
-const renderer = new THREE.WebGLRenderer({ canvas, context });
+const renderer = new WebGLRenderer({ canvas, context });
 renderer.debug.checkShaderErrors = true;
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = PCFSoftShadowMap;
 
-const scene = new THREE.Scene();
+const scene = new Scene();
 
-scene.add(new THREE.AmbientLight(0x404040));
+scene.add(new AmbientLight(0x404040));
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+const directionalLight = new DirectionalLight(0xffffff, 1);
 directionalLight.position.set(1, 10, 0);
 directionalLight.castShadow = true;
 directionalLight.shadow.camera.near = 1;
@@ -32,7 +46,7 @@ directionalLight.shadow.mapSize.height = 1024;
 directionalLight.shadow.bias = -0.00025;
 scene.add(directionalLight);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(3.42, 3.4, 2.38);
 camera.lookAt(0, 0, 0);
 scene.add(camera);
@@ -43,9 +57,9 @@ controls.update();
 
 const batchManager = new BatchManager(scene, renderer);
 
-const mixers = [];
+const mixers: AnimationMixer[] = [];
 
-function loadGLTF(url, position, scale) {
+function loadGLTF(url: string, position: Vector3, scale: number) {
   new GLTFLoader().load(url, gltf => {
     gltf.scene.position.copy(position);
     gltf.scene.scale.setScalar(scale);
@@ -53,14 +67,14 @@ function loadGLTF(url, position, scale) {
 
     scene.add(gltf.scene);
 
-    gltf.scene.traverse(object => {
+    gltf.scene.traverse((object: any) => {
       if (object.isMesh && !object.material.transparent) {
         batchManager.addMesh(object);
       }
     });
 
     if (gltf.animations && gltf.animations.length > 0) {
-      const mixer = new THREE.AnimationMixer(gltf.scene);
+      const mixer = new AnimationMixer(gltf.scene);
 
       gltf.animations.forEach(clip => {
         mixer.clipAction(clip).play();
@@ -71,7 +85,7 @@ function loadGLTF(url, position, scale) {
   });
 }
 
-function loadImage(url, position, scale) {
+function loadImage(url: string, position: Vector3, scale: number) {
   new TextureLoader().load(url, texture => {
     const imageGeometry = new PlaneBufferGeometry();
     const imageMaterial = new MeshBasicMaterial({ map: texture });
@@ -88,7 +102,7 @@ loadGLTF("./MozAtrium.glb", new Vector3(), 1);
 loadGLTF("./BlocksTruck/model.gltf", new Vector3(0, 1, 0), 0.1);
 loadImage("./FirefoxLogo.png", new Vector3(1, 1, 0), 1);
 
-const clock = new THREE.Clock();
+const clock = new Clock();
 
 function render() {
   const dt = clock.getDelta();
@@ -102,5 +116,5 @@ function render() {
 
 renderer.setAnimationLoop(render);
 
-window.renderer = renderer;
-window.scene = scene;
+(window as any).renderer = renderer;
+(window as any).scene = scene;

@@ -120,39 +120,39 @@ export default class WebGLAtlasTexture extends Texture {
     const slot = 0;
 
     const { state, properties } = this.renderer;
-    const _gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.context as WebGL2RenderingContext;
     const textureProperties = properties.get(this);
 
     // console.log("Allocating texture array, depth", arrayDepth);
-    this.glTexture = _gl.createTexture();
+    this.glTexture = gl.createTexture();
     this.arrayDepth = arrayDepth;
     textureProperties.__webglTexture = this.glTexture;
     textureProperties.__webglInit = true;
 
-    state.activeTexture(_gl.TEXTURE0 + slot);
-    state.bindTexture(_gl.TEXTURE_2D_ARRAY, this.glTexture);
+    state.activeTexture(gl.TEXTURE0 + slot);
+    state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
 
-    _gl.pixelStorei(_gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
-    _gl.pixelStorei(_gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
-    _gl.pixelStorei(_gl.UNPACK_ALIGNMENT, this.unpackAlignment);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, this.unpackAlignment);
 
-    _gl.texParameteri(_gl.TEXTURE_2D_ARRAY, _gl.TEXTURE_WRAP_S, _gl.CLAMP_TO_EDGE);
-    _gl.texParameteri(_gl.TEXTURE_2D_ARRAY, _gl.TEXTURE_WRAP_T, _gl.CLAMP_TO_EDGE);
-    _gl.texParameteri(_gl.TEXTURE_2D_ARRAY, _gl.TEXTURE_MAG_FILTER, _gl.LINEAR);
-    _gl.texParameteri(_gl.TEXTURE_2D_ARRAY, _gl.TEXTURE_MIN_FILTER, _gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
-    // _gl.texStorage3D(_gl.TEXTURE_2D_ARRAY, 1, _gl.RGBA8, this.textureResolution, this.textureResolution, arrayDepth);
+    // gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGBA8, this.textureResolution, this.textureResolution, arrayDepth);
 
     state.texImage3D(
-      _gl.TEXTURE_2D_ARRAY,
+      gl.TEXTURE_2D_ARRAY,
       0,
-      _gl.RGBA,
+      gl.RGBA,
       this.textureResolution,
       this.textureResolution,
       arrayDepth,
       0,
-      _gl.RGBA,
-      _gl.UNSIGNED_BYTE,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
       null
     );
 
@@ -240,20 +240,20 @@ export default class WebGLAtlasTexture extends Texture {
 
   uploadImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage) {
     const state = this.renderer.state;
-    const _gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.context as WebGL2RenderingContext;
     const slot = 0;
 
-    state.activeTexture(_gl.TEXTURE0 + slot);
-    state.bindTexture(_gl.TEXTURE_2D_ARRAY, this.glTexture);
+    state.activeTexture(gl.TEXTURE0 + slot);
+    state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
 
-    _gl.pixelStorei(_gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
-    _gl.pixelStorei(_gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
-    _gl.pixelStorei(_gl.UNPACK_ALIGNMENT, this.unpackAlignment);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, this.unpackAlignment);
 
     const layer = this.layers[layerIdx];
     // console.log("Uploading image", layerIdx, atlasIdx, img.width, img.height);
-    _gl.texSubImage3D(
-      _gl.TEXTURE_2D_ARRAY, // target
+    gl.texSubImage3D(
+      gl.TEXTURE_2D_ARRAY, // target
       0, // level
       (atlasIdx % layer.colls) * layer.size, // xoffset
       Math.floor(atlasIdx / layer.rows) * layer.size, // yoffset
@@ -261,8 +261,8 @@ export default class WebGLAtlasTexture extends Texture {
       img.width, // width
       img.height, // height
       1, // depth
-      _gl.RGBA, // format
-      _gl.UNSIGNED_BYTE, // type
+      gl.RGBA, // format
+      gl.UNSIGNED_BYTE, // type
       img // pixels
     );
   }
@@ -285,7 +285,7 @@ export default class WebGLAtlasTexture extends Texture {
 }
 
 Object.defineProperty(WebGLAtlasTexture.prototype, "needsUpdate", {
-  set: function() {
+  set() {
     console.warn("needsUpdate should not be set on a WebGLAtlasTexture, it handles texture uploading internally");
   }
 });

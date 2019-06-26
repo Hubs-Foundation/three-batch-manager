@@ -1,15 +1,13 @@
 {
-    "compilerOptions": {
-        "declaration": true,
-        "declarationDir": "./dist",
-        "module": "es6",
-        "noImplicitAny": true,
-        "outDir": "./dist",
-        "target": "es5",
-        "moduleResolution": "node"
-    },
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": ["node_modules"]
+  "compilerOptions": {
+    "declaration": true,
+    "declarationDir": "./dist",
+    "module": "es6",
+    "noImplicitAny": true,
+    "outDir": "./dist",
+    "target": "es5",
+    "moduleResolution": "node",
+    "sourceMap": true
+  },
+  "exclude": ["node_modules", "lib"]
 }

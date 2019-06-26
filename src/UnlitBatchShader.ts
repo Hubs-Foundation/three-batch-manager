@@ -4,7 +4,7 @@ import { LayerID } from "./WebGLAtlasTexture";
 /**
  * Use glsl-literal extension for syntax highlighting.
  * https://github.com/giniedp/vscode-glsl-literal
- **/
+ */
 
 const glsl = (x: TemplateStringsArray) => x.join();
 
