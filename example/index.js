@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import { BatchManager } from "../src/index";
+import { BatchManager } from "../dist/index";
 import { Vector3, TextureLoader, MeshBasicMaterial, PlaneBufferGeometry, Mesh, DoubleSide } from "three";
 
 const canvas = document.getElementById("canvas");
@@ -58,14 +58,14 @@ function loadGLTF(url, position, scale) {
         batchManager.addMesh(object);
       }
     });
-  
+
     if (gltf.animations && gltf.animations.length > 0) {
       const mixer = new THREE.AnimationMixer(gltf.scene);
-  
+
       gltf.animations.forEach(clip => {
         mixer.clipAction(clip).play();
       });
-  
+
       mixers.push(mixer);
     }
   });

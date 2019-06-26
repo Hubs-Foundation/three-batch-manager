@@ -1,17 +1,30 @@
-import { RawUniformsGroup } from "three";
+import { RawUniformsGroup, Color, Matrix4 } from "three";
+import { LayerID } from "./WebGLAtlasTexture";
 
 /**
  * Use glsl-literal extension for syntax highlighting.
  * https://github.com/giniedp/vscode-glsl-literal
  **/
 
-const glsl = x => x.join();
+const glsl = (x: TemplateStringsArray) => x.join();
 
 export const INSTANCE_DATA_BYTE_LENGTH = 112;
 
+export type InstanceID = number;
+
 const tempVec4Array = [0, 0, 0, 0];
 export class BatchRawUniformGroup extends RawUniformsGroup {
-  constructor(maxInstances, name = "InstanceData") {
+  transforms: Float32Array;
+  colors: Float32Array;
+  uvTransforms: Float32Array;
+  mapIndices: Uint32Array;
+
+  private nextIdx: InstanceID;
+  private freed: InstanceID[];
+
+  data: ArrayBuffer;
+
+  constructor(maxInstances: number, name = "InstanceData") {
     super(new ArrayBuffer(maxInstances * INSTANCE_DATA_BYTE_LENGTH));
     this.setName(name);
 
@@ -36,12 +49,12 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
     return this.freed.length ? this.freed.pop() : this.nextIdx++;
   }
 
-  freeId(idx) {
+  freeId(idx: number) {
     this.freed.push(idx);
     console.log("freed instance", idx, this.freed);
   }
 
-  setInstanceColor(instanceId, color, opacity) {
+  setInstanceColor(instanceId: InstanceID, color: Color, opacity: number) {
     tempVec4Array[0] = color.r;
     tempVec4Array[1] = color.g;
     tempVec4Array[2] = color.b;
@@ -50,15 +63,15 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
     this.colors.set(tempVec4Array, instanceId * 4);
   }
 
-  setInstanceTransform(instanceId, matrixWorld) {
+  setInstanceTransform(instanceId: InstanceID, matrixWorld: Matrix4) {
     this.transforms.set(matrixWorld.elements, instanceId * 16);
   }
 
-  setInstanceUVTransform(instanceId, transformVec4) {
+  setInstanceUVTransform(instanceId: InstanceID, transformVec4: number[]) {
     this.uvTransforms.set(transformVec4, instanceId * 4);
   }
 
-  setInstanceMapIndex(instanceId, mapIndex) {
+  setInstanceMapIndex(instanceId: InstanceID, mapIndex: LayerID) {
     this.mapIndices[instanceId * 4] = mapIndex;
   }
 }
@@ -140,7 +153,6 @@ void main() {
   vec2 uv = vUv;
 
   uv = fract((uv - uvMin) / uvScale) * uvScale + uvMin;
-  
   outColor = texture(map, vec3(uv, vMapIdx)) * vColor;
 }
 `;

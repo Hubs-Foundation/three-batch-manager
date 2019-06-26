@@ -2,9 +2,12 @@
   "name": "three-render-manager",
   "version": "0.1.0",
   "description": "High level batching / instancing API for ThreeJS",
-  "main": "./src/index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.es.js",
   "scripts": {
-    "start": "webpack-dev-server --config ./example/webpack.config.js"
+    "start": "webpack-dev-server --config ./example/webpack.config.js",
+    "build": "rollup -c",
+    "watch": "rollup -cw"
   },
   "author": "Robert Long",
   "license": "MPL-2.0",
@@ -12,13 +15,17 @@
     "three": "^0.104.0"
   },
   "devDependencies": {
+    "@types/webgl2": "0.0.4",
     "babel-eslint": "^10.0.1",
     "eslint": "^5.16.0",
     "eslint-config-prettier": "^4.3.0",
     "eslint-plugin-prettier": "^3.1.0",
     "html-webpack-plugin": "^3.2.0",
     "prettier": "^1.18.2",
+    "rollup": "^1.16.2",
+    "rollup-plugin-typescript2": "^0.21.2",
     "three": "github:mozillareality/three.js#hubs/vao-ubo-prs",
+    "typescript": "^3.5.2",
     "webpack": "^4.30.0",
     "webpack-cli": "^3.3.1",
     "webpack-dev-server": "^3.3.1"
