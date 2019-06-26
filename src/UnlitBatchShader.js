@@ -102,8 +102,6 @@ void main() {
   uint instanceIndex = gl_InstanceID;
   #endif
 
-  vUv = uv;
-
   vColor = instanceData.colors[instanceIndex];
 
   #ifdef VERTEX_COLORS
@@ -111,6 +109,11 @@ void main() {
   #endif
 
   vUVTransform = instanceData.uvTransforms[instanceIndex];
+
+  vec2 uvMin = vUVTransform.xy;
+  vec2 uvScale = vUVTransform.zw;
+
+  vUv = uvMin + (uv * uvScale);
 
   vMapIdx = instanceData.mapIndices[instanceIndex];
   gl_Position = projectionMatrix * viewMatrix * instanceData.transforms[instanceIndex] * vec4(position, 1.0);
@@ -134,7 +137,10 @@ out vec4 outColor;
 void main() {
   vec2 uvMin = vUVTransform.xy;
   vec2 uvScale = vUVTransform.zw;
-  vec2 uv = uvMin + (vUv * uvScale);
+  vec2 uv = vUv;
+
+  uv = fract((uv - uvMin) / uvScale) * uvScale + uvMin;
+  
   outColor = texture(map, vec3(uv, vMapIdx)) * vColor;
 }
 `;

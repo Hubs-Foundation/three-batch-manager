@@ -51,7 +51,7 @@ export default class WebGLAtlasTexture extends Texture {
     this.flipY = false;
 
     // TODO this can start small and grow dynamically
-    this.createTextureArray(16);
+    this.createTextureArray(6);
 
     this.nullTextureTransform = [0, 0, 0, 0];
     this.nullTextureIndex = this.addColorRect(this.minAtlasSize, "white", this.nullTextureTransform);
@@ -126,7 +126,7 @@ export default class WebGLAtlasTexture extends Texture {
     textureProperties.__maxMipLevel = 0;
   }
 
-  addImage(img, uvTransform) {
+  addImage(img, flipY, uvTransform) {
     let width = img.width;
     let height = img.height;
     let size;
@@ -166,6 +166,14 @@ export default class WebGLAtlasTexture extends Texture {
     uvTransform[2] = (1 / layer.colls) * (width / layer.size);
     uvTransform[3] = (1 / layer.rows) * (height / layer.size);
 
+    if (flipY) {
+      const yOffset = Math.floor(atlasIdx / layer.rows) / layer.rows;
+      const yScale = (1 / layer.rows) * (height / layer.size);
+      uvTransform[1] = yOffset + yScale;
+      uvTransform[3] = -yScale;
+    }
+    
+
     // console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
 
     return id;
@@ -176,7 +184,7 @@ export default class WebGLAtlasTexture extends Texture {
     this.canvas.height = size;
     this.canvasCtx.fillStyle = color;
     this.canvasCtx.fillRect(0, 0, size, size);
-    return this.addImage(this.canvas, uvTransform);
+    return this.addImage(this.canvas, false, uvTransform);
   }
 
   uploadImage(layerIdx, atlasIdx, img) {

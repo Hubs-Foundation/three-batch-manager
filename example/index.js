@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { BatchManager } from "../src/index";
-import { Vector3 } from "three";
+import { Vector3, TextureLoader, MeshBasicMaterial, PlaneBufferGeometry, Mesh } from "three";
 
 const canvas = document.getElementById("canvas");
 const context = canvas.getContext("webgl2", { antialias: true });
@@ -71,9 +71,21 @@ function loadGLTF(url, position, scale) {
   });
 }
 
-//loadGLTF("./MozAtrium.glb", new Vector3(), 1);
-//loadGLTF("./MozAtrium.glb", new Vector3(), 1);
+function loadImage(url, position, scale) {
+  new TextureLoader().load(url, texture => {
+    const imageGeometry = new PlaneBufferGeometry();
+    const imageMaterial = new MeshBasicMaterial({ map: texture });
+    const imageMesh = new Mesh(imageGeometry, imageMaterial);
+    imageMesh.position.copy(position);
+    imageMesh.scale.setScalar(scale);
+    scene.add(imageMesh);
+    batchManager.addMesh(imageMesh);
+  });
+}
+
+loadGLTF("./MozAtrium.glb", new Vector3(), 1);
 loadGLTF("./BlocksTruck/model.gltf", new Vector3(0, 1, 0), 0.1);
+loadImage("./FirefoxLogo.png", new Vector3(1, 1, 0), 1);
 
 const clock = new THREE.Clock();
 

@@ -155,7 +155,7 @@ export class UnlitBatch extends Mesh {
       //   this.textureResolution
       // );
 
-      const textureId = this.material.uniforms.map.value.addImage(material.map.image, tempVec4Array);
+      const textureId = this.material.uniforms.map.value.addImage(material.map.image, material.map.flipY, tempVec4Array);
       this.textureIds.push(textureId);
 
       this.ubo.setInstanceUVTransform(instanceId, tempVec4Array);
