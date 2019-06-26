@@ -50,8 +50,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.flipY = false;
 
-    // TODO this can start small and grow dynamically
-    this.createTextureArray(6);
+    this.createTextureArray(3);
 
     this.nullTextureTransform = [0, 0, 0, 0];
     this.nullTextureIndex = this.addColorRect(this.minAtlasSize, "white", this.nullTextureTransform);
@@ -74,6 +73,9 @@ export default class WebGLAtlasTexture extends Texture {
       this.layers[layerIdx].recycle(size, rows, rows);
       return layerIdx;
     } else {
+      if (this.layers.length === this.arrayDepth) {
+        this.growTextureArray(Math.ceil(this.arrayDepth * 1.5));
+      }
       this.layers.push(new Layer(size, rows, rows));
       return this.layers.length - 1;
     }
@@ -93,6 +95,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     // console.log("Allocating texture array, depth", arrayDepth);
     this.glTexture = _gl.createTexture();
+    this.arrayDepth = arrayDepth;
     textureProperties.__webglTexture = this.glTexture;
     textureProperties.__webglInit = true;
 
@@ -124,6 +127,27 @@ export default class WebGLAtlasTexture extends Texture {
     );
 
     textureProperties.__maxMipLevel = 0;
+  }
+
+  growTextureArray(newDepth) {
+    console.log("Growing array", newDepth);
+    const gl = this.renderer.context;
+
+    const prevGlTexture = this.glTexture;
+    const prevArrayDepth = this.arrayDepth;
+
+    const framebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+
+    this.createTextureArray(newDepth);
+
+    for (let i = 0; i < prevArrayDepth; i++) {
+      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, prevGlTexture, 0, i);
+      gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, 0, 0, this.textureResolution, this.textureResolution);
+    }
+
+    gl.deleteTexture(prevGlTexture);
+    gl.deleteFramebuffer(framebuffer);
   }
 
   addImage(img, flipY, uvTransform) {
@@ -167,12 +191,9 @@ export default class WebGLAtlasTexture extends Texture {
     uvTransform[3] = (1 / layer.rows) * (height / layer.size);
 
     if (flipY) {
-      const yOffset = Math.floor(atlasIdx / layer.rows) / layer.rows;
-      const yScale = (1 / layer.rows) * (height / layer.size);
-      uvTransform[1] = yOffset + yScale;
-      uvTransform[3] = -yScale;
+      uvTransform[1] = uvTransform[1] + uvTransform[3];
+      uvTransform[3] = -uvTransform[3];
     }
-    
 
     // console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
 
