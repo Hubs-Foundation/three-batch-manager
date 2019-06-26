@@ -288,6 +288,7 @@ export class BatchManager {
     for (let i = 0; i < this.batches.length; i++) {
       const batch = batches[i];
       if (
+        mesh.material.side === batch.material.side &&
         batch.geometry.drawRange.count + mesh.geometry.index.count < batch.maxVertsPerDraw &&
         batch.vertCount + mesh.geometry.attributes.position.count < batch.maxVertsPerDraw
       ) {
@@ -303,6 +304,7 @@ export class BatchManager {
         maxInstances: this.maxInstances,
         ubo: this.ubo
       });
+      nextBatch.material.side = mesh.material.side;
       this.scene.add(nextBatch);
       this.batches.push(nextBatch);
       console.log("Allocating new batch", this.batches.length);
