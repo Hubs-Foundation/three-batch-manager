@@ -5,19 +5,56 @@ import {
   Matrix4,
   Color,
   Uint32BufferAttribute,
-  Float32BufferAttribute
+  Float32BufferAttribute,
+  MeshStandardMaterial,
+  Scene,
+  WebGLRenderer,
+  BufferAttribute
 } from "three";
-import WebGLAtlasTexture from "./WebGLAtlasTexture";
-import { vertexShader, fragmentShader, BatchRawUniformGroup } from "./UnlitBatchShader";
+import WebGLAtlasTexture, { TextureID } from "./WebGLAtlasTexture";
+import { vertexShader, fragmentShader, BatchRawUniformGroup, InstanceID } from "./UnlitBatchShader";
 
 const HIDE_MATRIX = new Matrix4().makeScale(0, 0, 0);
 const DEFAULT_COLOR = new Color(1, 1, 1);
 
 const tempVec4Array = [0, 0, 0, 0];
 
+interface BatchableBufferGeometry extends BufferGeometry {
+  attributes: {
+    [name: string]: BufferAttribute;
+  };
+}
+
+interface BatchableMesh extends Mesh {
+  geometry: BatchableBufferGeometry;
+  material: MeshStandardMaterial;
+}
+
+type UnlitBatchOptions = {
+  maxVertsPerDraw: number;
+  enableVertexColors: boolean;
+  pseudoInstancing: boolean;
+  maxInstances: number;
+};
+
 export class UnlitBatch extends Mesh {
-  constructor(options = {}) {
-    const _options = Object.assign(
+  maxVertsPerDraw: number;
+  enableVertexColors: boolean;
+  maxInstances: number;
+  vertCount: number;
+
+  textureIds: TextureID[];
+  meshes: BatchableMesh[];
+  instanceIds: InstanceID[];
+
+  atlas: WebGLAtlasTexture;
+  ubo: BatchRawUniformGroup;
+
+  geometry: BatchableBufferGeometry;
+  material: RawShaderMaterial;
+
+  constructor(ubo: BatchRawUniformGroup, atlas: WebGLAtlasTexture, options = {}) {
+    const _options: UnlitBatchOptions = Object.assign(
       {
         maxVertsPerDraw: 65536 * 2,
         enableVertexColors: true,
@@ -51,11 +88,11 @@ export class UnlitBatch extends Mesh {
         VERTEX_COLORS: _options.enableVertexColors
       },
       uniforms: {
-        map: { value: _options.atlas }
+        map: { value: atlas }
       }
     });
 
-    material.uniformsGroups = [_options.ubo];
+    material.uniformsGroups = [ubo];
 
     super(geometry, material);
 
@@ -72,11 +109,11 @@ export class UnlitBatch extends Mesh {
 
     this.frustumCulled = false;
 
-    this.atlas = _options.atlas;
-    this.ubo = _options.ubo;
+    this.atlas = atlas;
+    this.ubo = ubo;
   }
 
-  addMesh(mesh) {
+  addMesh(mesh: BatchableMesh) {
     const geometry = mesh.geometry;
     const material = mesh.material;
 
@@ -87,7 +124,7 @@ export class UnlitBatch extends Mesh {
     const meshIndices = geometry.index.array;
     const meshIndicesCount = geometry.index.count;
     const meshVertCount = geometry.attributes.position.count;
-    const batchIndicesArray = this.geometry.index.array;
+    const batchIndicesArray = this.geometry.index.array as Uint32Array;
     const batchIndicesOffset = this.geometry.drawRange.count;
 
     console.log("add mesh", instanceId, this.meshes.length);
@@ -97,11 +134,12 @@ export class UnlitBatch extends Mesh {
     }
     // meshIndiciesAttribute.setArray(batchIndicesArray.subarray(batchIndicesOffset, batchIndicesOffset + meshIndicesCount))
 
-    this.geometry.attributes.instance.array.fill(instanceId, this.vertCount, this.vertCount + meshVertCount);
+    const batchInstancesArray = this.geometry.attributes.instance.array as Float32Array;
+    batchInstancesArray.fill(instanceId, this.vertCount, this.vertCount + meshVertCount);
     this.geometry.attributes.instance.needsUpdate = true;
 
     const meshPositionsAttribute = geometry.attributes.position;
-    const batchPositionsArray = this.geometry.attributes.position.array;
+    const batchPositionsArray = this.geometry.attributes.position.array as Float32Array;
     for (let i = 0; i < meshVertCount; i++) {
       batchPositionsArray[(this.vertCount + i) * 3] = meshPositionsAttribute.getX(i);
       batchPositionsArray[(this.vertCount + i) * 3 + 1] = meshPositionsAttribute.getY(i);
@@ -113,7 +151,7 @@ export class UnlitBatch extends Mesh {
 
     if (this.enableVertexColors && geometry.attributes.color) {
       const meshColorAttribute = geometry.attributes.color;
-      const batchColorArray = this.geometry.attributes.color.array;
+      const batchColorArray = this.geometry.attributes.color.array as Float32Array;
 
       for (let i = 0; i < meshVertCount; i++) {
         batchColorArray[(this.vertCount + i) * 3] = meshColorAttribute.getX(i);
@@ -126,7 +164,7 @@ export class UnlitBatch extends Mesh {
     }
 
     if (geometry.attributes.uv) {
-      const batchUvArray = this.geometry.attributes.uv.array;
+      const batchUvArray = this.geometry.attributes.uv.array as Float32Array;
       const meshUvAttribute = geometry.attributes.uv;
       const uvCount = geometry.attributes.uv.count;
 
@@ -155,14 +193,18 @@ export class UnlitBatch extends Mesh {
       //   this.textureResolution
       // );
 
-      const textureId = this.material.uniforms.map.value.addImage(material.map.image, material.map.flipY, tempVec4Array);
+      const textureId = this.material.uniforms.map.value.addImage(
+        material.map.image,
+        material.map.flipY,
+        tempVec4Array
+      );
       this.textureIds.push(textureId);
 
       this.ubo.setInstanceUVTransform(instanceId, tempVec4Array);
       this.ubo.setInstanceMapIndex(instanceId, textureId[0]);
     } else {
       this.ubo.setInstanceUVTransform(instanceId, this.atlas.nullTextureTransform);
-      this.ubo.setInstanceMapIndex(instanceId, this.atlas.nullTextureIndex);
+      this.ubo.setInstanceMapIndex(instanceId, this.atlas.nullTextureIndex[0]);
       this.textureIds.push(null);
     }
 
@@ -203,7 +245,7 @@ export class UnlitBatch extends Mesh {
     this.instanceIds.push(instanceId);
   }
 
-  removeMesh(mesh) {
+  removeMesh(mesh: BatchableMesh) {
     const indexInBatch = this.meshes.indexOf(mesh);
     const instanceId = this.instanceIds[indexInBatch];
 
@@ -219,18 +261,18 @@ export class UnlitBatch extends Mesh {
 
     const vertCount = mesh.geometry.attributes.position.count;
     const batchAttributes = this.geometry.attributes;
-    batchAttributes.instance.array.copyWithin(preVertCount, preVertCount + vertCount);
+    (batchAttributes.instance.array as Float32Array).copyWithin(preVertCount, preVertCount + vertCount);
     batchAttributes.instance.needsUpdate = true;
-    batchAttributes.position.array.copyWithin(preVertCount * 3, (preVertCount + vertCount) * 3);
+    (batchAttributes.position.array as Float32Array).copyWithin(preVertCount * 3, (preVertCount + vertCount) * 3);
     batchAttributes.position.needsUpdate = true;
-    batchAttributes.color.array.copyWithin(preVertCount * 3, (preVertCount + vertCount) * 3);
+    (batchAttributes.color.array as Float32Array).copyWithin(preVertCount * 3, (preVertCount + vertCount) * 3);
     batchAttributes.color.needsUpdate = true;
-    batchAttributes.uv.array.copyWithin(preVertCount * 2, (preVertCount + vertCount) * 2);
+    (batchAttributes.uv.array as Float32Array).copyWithin(preVertCount * 2, (preVertCount + vertCount) * 2);
     batchAttributes.uv.needsUpdate = true;
     this.vertCount -= vertCount;
 
     const indexCount = mesh.geometry.index.count;
-    const batchIndexArray = this.geometry.index.array;
+    const batchIndexArray = this.geometry.index.array as Uint32Array;
     this.geometry.setDrawRange(0, this.geometry.drawRange.count - indexCount);
     for (let i = preIndexCount; i < this.geometry.drawRange.count; i++) {
       batchIndexArray[i] = batchIndexArray[i + indexCount] - vertCount;
@@ -252,7 +294,10 @@ export class UnlitBatch extends Mesh {
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
       const instanceId = this.instanceIds[i];
+
+      // @ts-ignore: Hubs three fork
       mesh.updateMatrices && mesh.updateMatrices();
+
       //TODO need to account for nested visibility deeper than 1 level
       this.ubo.setInstanceTransform(instanceId, mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
       this.ubo.setInstanceColor(instanceId, mesh.material.color || DEFAULT_COLOR, mesh.material.opacity || 1);
@@ -261,7 +306,19 @@ export class UnlitBatch extends Mesh {
 }
 
 export class BatchManager {
-  constructor(scene, renderer, maxInstances = 512) {
+  scene: Scene;
+  renderer: WebGLRenderer;
+
+  maxInstances: number;
+  instanceCount: number;
+
+  batchForMesh: WeakMap<BatchableMesh, UnlitBatch>;
+  batches: UnlitBatch[];
+
+  atlas: WebGLAtlasTexture;
+  ubo: BatchRawUniformGroup;
+
+  constructor(scene: Scene, renderer: WebGLRenderer, maxInstances = 512) {
     this.scene = scene;
     this.renderer = renderer;
     this.maxInstances = maxInstances;
@@ -275,7 +332,7 @@ export class BatchManager {
     this.instanceCount = 0;
   }
 
-  addMesh(mesh) {
+  addMesh(mesh: BatchableMesh) {
     if (this.instanceCount >= this.maxInstances) {
       console.warn("Batch is full, not batching", mesh);
       return false;
@@ -298,12 +355,7 @@ export class BatchManager {
     }
 
     if (nextBatch === null) {
-      nextBatch = new UnlitBatch({
-        renderer: this.renderer,
-        atlas: this.atlas,
-        maxInstances: this.maxInstances,
-        ubo: this.ubo
-      });
+      nextBatch = new UnlitBatch(this.ubo, this.atlas, { maxInstances: this.maxInstances });
       nextBatch.material.side = mesh.material.side;
       this.scene.add(nextBatch);
       this.batches.push(nextBatch);
@@ -317,7 +369,7 @@ export class BatchManager {
     return true;
   }
 
-  removeMesh(mesh) {
+  removeMesh(mesh: BatchableMesh) {
     const batch = this.batchForMesh.get(mesh);
     batch.removeMesh(mesh);
     this.batchForMesh.delete(mesh);
