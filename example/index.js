@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { BatchManager } from "../src/index";
-import { Vector3, TextureLoader, MeshBasicMaterial, PlaneBufferGeometry, Mesh } from "three";
+import { Vector3, TextureLoader, MeshBasicMaterial, PlaneBufferGeometry, Mesh, DoubleSide } from "three";
 
 const canvas = document.getElementById("canvas");
 const context = canvas.getContext("webgl2", { antialias: true });
@@ -75,6 +75,7 @@ function loadImage(url, position, scale) {
   new TextureLoader().load(url, texture => {
     const imageGeometry = new PlaneBufferGeometry();
     const imageMaterial = new MeshBasicMaterial({ map: texture });
+    imageMaterial.side = DoubleSide;
     const imageMesh = new Mesh(imageGeometry, imageMaterial);
     imageMesh.position.copy(position);
     imageMesh.scale.setScalar(scale);
