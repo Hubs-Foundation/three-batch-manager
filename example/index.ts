@@ -12,10 +12,11 @@ import {
   AmbientLight,
   PerspectiveCamera,
   Clock,
-  DirectionalLight
+  DirectionalLight,
+  Texture
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { GLTFLoader, GLTF } from "three/examples/jsm/loaders/GLTFLoader";
 import { BatchManager } from "../src/index";
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
@@ -59,48 +60,59 @@ const batchManager = new BatchManager(scene, renderer);
 
 const mixers: AnimationMixer[] = [];
 
-function loadGLTF(url: string, position: Vector3, scale: number) {
-  new GLTFLoader().load(url, gltf => {
-    gltf.scene.position.copy(position);
-    gltf.scene.scale.setScalar(scale);
-    gltf.scene.updateMatrixWorld(true);
+function loadGLTF(url: string): Promise<GLTF> {
+  return new Promise((resolve, reject) => new GLTFLoader().load(url, resolve, undefined, reject));
+}
 
-    scene.add(gltf.scene);
+function loadTexture(url: string): Promise<Texture> {
+  return new Promise((resolve, reject) => new TextureLoader().load(url, resolve, undefined, reject));
+}
 
-    gltf.scene.traverse((object: any) => {
-      if (object.isMesh && !object.material.transparent) {
-        batchManager.addMesh(object);
-      }
-    });
+function addImage(texture: Texture, position: Vector3, scale: number) {
+  const imageGeometry = new PlaneBufferGeometry();
+  const imageMaterial = new MeshBasicMaterial({ map: texture });
+  imageMaterial.side = DoubleSide;
+  const imageMesh = new Mesh(imageGeometry, imageMaterial);
+  imageMesh.position.copy(position);
+  imageMesh.scale.setScalar(scale);
+  scene.add(imageMesh);
+  batchManager.addMesh(imageMesh);
+}
 
-    if (gltf.animations && gltf.animations.length > 0) {
-      const mixer = new AnimationMixer(gltf.scene);
+function addGlTF(gltf: GLTF, position: Vector3, scale: number) {
+  gltf.scene.position.copy(position);
+  gltf.scene.scale.setScalar(scale);
+  gltf.scene.updateMatrixWorld(true);
 
-      gltf.animations.forEach(clip => {
-        mixer.clipAction(clip).play();
-      });
+  scene.add(gltf.scene);
 
-      mixers.push(mixer);
+  gltf.scene.traverse((object: any) => {
+    if (object.isMesh && !object.material.transparent) {
+      batchManager.addMesh(object);
     }
   });
+
+  if (gltf.animations && gltf.animations.length > 0) {
+    const mixer = new AnimationMixer(gltf.scene);
+
+    gltf.animations.forEach(clip => {
+      mixer.clipAction(clip).play();
+    });
+
+    mixers.push(mixer);
+  }
 }
 
-function loadImage(url: string, position: Vector3, scale: number) {
-  new TextureLoader().load(url, texture => {
-    const imageGeometry = new PlaneBufferGeometry();
-    const imageMaterial = new MeshBasicMaterial({ map: texture });
-    imageMaterial.side = DoubleSide;
-    const imageMesh = new Mesh(imageGeometry, imageMaterial);
-    imageMesh.position.copy(position);
-    imageMesh.scale.setScalar(scale);
-    scene.add(imageMesh);
-    batchManager.addMesh(imageMesh);
-  });
-}
+(async function loadScene() {
+  const atriumGltf = await loadGLTF("./MozAtrium.glb");
+  const blocksTruckGltf = await loadGLTF("./BlocksTruck/model.gltf");
+  const firefoxLogoTexture = await loadTexture("./FirefoxLogo.png");
 
-loadGLTF("./MozAtrium.glb", new Vector3(), 1);
-loadGLTF("./BlocksTruck/model.gltf", new Vector3(0, 1, 0), 0.1);
-loadImage("./FirefoxLogo.png", new Vector3(1, 1, 0), 1);
+  addGlTF(atriumGltf, new Vector3(), 1);
+  addGlTF(blocksTruckGltf, new Vector3(0, 1, 0), 0.1);
+  addImage(firefoxLogoTexture, new Vector3(1, 1, 0), 1);
+  addImage(firefoxLogoTexture, new Vector3(3, 1, 0), 1);
+})().catch(console.error);
 
 const clock = new Clock();
 

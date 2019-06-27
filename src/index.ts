@@ -191,11 +191,7 @@ export class UnlitBatch extends Mesh {
       //   this.textureResolution
       // );
 
-      const textureId = this.material.uniforms.map.value.addImage(
-        material.map.image,
-        material.map.flipY,
-        tempVec4Array
-      );
+      const textureId = this.material.uniforms.map.value.addTexture(material.map, tempVec4Array);
       this.textureIds.push(textureId);
 
       this.ubo.setInstanceUVTransform(instanceId, tempVec4Array);
@@ -277,8 +273,8 @@ export class UnlitBatch extends Mesh {
     }
     this.geometry.index.needsUpdate = true;
 
-    if (this.textureIds[indexInBatch]) {
-      this.material.uniforms.map.value.removeImage(this.textureIds[indexInBatch]);
+    if (mesh.material.map) {
+      this.material.uniforms.map.value.removeTexture(mesh.material.map);
     }
 
     this.ubo.setInstanceTransform(instanceId, HIDE_MATRIX);
