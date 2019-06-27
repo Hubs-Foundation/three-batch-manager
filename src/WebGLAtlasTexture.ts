@@ -193,12 +193,8 @@ export default class WebGLAtlasTexture extends Texture {
         uvTransform[i] = textureInfo.uvTransform[i];
       }
 
-      console.log(texture, uvTransform);
-
       return textureInfo.id;
     }
-
-    console.log(texture, uvTransform);
 
     const img = texture.image;
     let width = img.width;
