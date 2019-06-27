@@ -14,7 +14,10 @@ import {
   Clock,
   DirectionalLight,
   Texture,
-  AxesHelper
+  AxesHelper,
+  Material,
+  Color,
+  MeshStandardMaterial
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader, GLTF } from "three/examples/jsm/loaders/GLTFLoader";
@@ -73,13 +76,20 @@ function loadTexture(url: string): Promise<Texture> {
   );
 }
 
+const nonBactchedColor = new Color(100, 0, 100);
+
 function addImage(texture: Texture) {
   const imageGeometry = new PlaneBufferGeometry();
   const imageMaterial = new MeshBasicMaterial({ map: texture });
   imageMaterial.side = DoubleSide;
   const imageMesh = new Mesh(imageGeometry, imageMaterial);
   scene.add(imageMesh);
-  batchManager.addMesh(imageMesh);
+
+  if (!batchManager.addMesh(imageMesh)) {
+    const material = imageMesh.material as MeshBasicMaterial;
+    material.color.add(nonBactchedColor);
+  }
+
   return imageMesh;
 }
 
@@ -88,7 +98,15 @@ function addGlTF(gltf: GLTF) {
 
   gltf.scene.traverse((object: any) => {
     if (object.isMesh) {
-      batchManager.addMesh(object);
+      if (!batchManager.addMesh(object)) {
+        if (Array.isArray(object.material)) {
+          for (const material of object.material) {
+            material.color.add(nonBactchedColor);
+          }
+        } else {
+          object.material.color.add(nonBactchedColor);
+        }
+      }
     }
   });
 
