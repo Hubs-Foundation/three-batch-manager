@@ -9,7 +9,8 @@ import {
   MeshStandardMaterial,
   Scene,
   WebGLRenderer,
-  BufferAttribute
+  BufferAttribute,
+  MeshBasicMaterial
 } from "three";
 import WebGLAtlasTexture, { TextureID } from "./WebGLAtlasTexture";
 import { vertexShader, fragmentShader, BatchRawUniformGroup, InstanceID } from "./UnlitBatchShader";
@@ -27,15 +28,15 @@ interface BatchableBufferGeometry extends BufferGeometry {
 
 interface BatchableMesh extends Mesh {
   geometry: BatchableBufferGeometry;
-  material: MeshStandardMaterial;
+  material: MeshStandardMaterial | MeshBasicMaterial;
 }
 
-type UnlitBatchOptions = {
+interface UnlitBatchOptions {
   maxVertsPerDraw: number;
   enableVertexColors: boolean;
   pseudoInstancing: boolean;
   maxInstances: number;
-};
+}
 
 export class UnlitBatch extends Mesh {
   maxVertsPerDraw: number;
@@ -54,7 +55,7 @@ export class UnlitBatch extends Mesh {
   material: RawShaderMaterial;
 
   constructor(ubo: BatchRawUniformGroup, atlas: WebGLAtlasTexture, options = {}) {
-    const _options: UnlitBatchOptions = Object.assign(
+    const opts: UnlitBatchOptions = Object.assign(
       {
         maxVertsPerDraw: 65536 * 2,
         enableVertexColors: true,
@@ -65,27 +66,24 @@ export class UnlitBatch extends Mesh {
     );
 
     const geometry = new BufferGeometry();
-    geometry.addAttribute("instance", new Float32BufferAttribute(new Float32Array(_options.maxVertsPerDraw), 1));
-    geometry.addAttribute("position", new Float32BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3), 3));
+    geometry.addAttribute("instance", new Float32BufferAttribute(new Float32Array(opts.maxVertsPerDraw), 1));
+    geometry.addAttribute("position", new Float32BufferAttribute(new Float32Array(opts.maxVertsPerDraw * 3), 3));
 
-    if (_options.enableVertexColors) {
-      geometry.addAttribute(
-        "color",
-        new Float32BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 3).fill(1), 3)
-      );
+    if (opts.enableVertexColors) {
+      geometry.addAttribute("color", new Float32BufferAttribute(new Float32Array(opts.maxVertsPerDraw * 3).fill(1), 3));
     }
 
-    geometry.addAttribute("uv", new Float32BufferAttribute(new Float32Array(_options.maxVertsPerDraw * 2), 2));
-    geometry.setIndex(new Uint32BufferAttribute(new Uint32Array(_options.maxVertsPerDraw), 1));
+    geometry.addAttribute("uv", new Float32BufferAttribute(new Float32Array(opts.maxVertsPerDraw * 2), 2));
+    geometry.setIndex(new Uint32BufferAttribute(new Uint32Array(opts.maxVertsPerDraw), 1));
     geometry.setDrawRange(0, 0);
 
     const material = new RawShaderMaterial({
       vertexShader,
       fragmentShader,
       defines: {
-        MAX_INSTANCES: _options.maxInstances,
-        PSEUDO_INSTANCING: _options.pseudoInstancing,
-        VERTEX_COLORS: _options.enableVertexColors
+        MAX_INSTANCES: opts.maxInstances,
+        PSEUDO_INSTANCING: opts.pseudoInstancing,
+        VERTEX_COLORS: opts.enableVertexColors
       },
       uniforms: {
         map: { value: atlas }
@@ -96,9 +94,9 @@ export class UnlitBatch extends Mesh {
 
     super(geometry, material);
 
-    this.maxVertsPerDraw = _options.maxVertsPerDraw;
-    this.enableVertexColors = _options.enableVertexColors;
-    this.maxInstances = _options.maxInstances;
+    this.maxVertsPerDraw = opts.maxVertsPerDraw;
+    this.enableVertexColors = opts.enableVertexColors;
+    this.maxInstances = opts.maxInstances;
 
     this.vertCount = 0;
 
@@ -279,7 +277,9 @@ export class UnlitBatch extends Mesh {
     }
     this.geometry.index.needsUpdate = true;
 
-    this.textureIds[indexInBatch] && this.material.uniforms.map.value.removeImage(this.textureIds[indexInBatch]);
+    if (this.textureIds[indexInBatch]) {
+      this.material.uniforms.map.value.removeImage(this.textureIds[indexInBatch]);
+    }
 
     this.ubo.setInstanceTransform(instanceId, HIDE_MATRIX);
     this.ubo.freeId(instanceId);
@@ -295,10 +295,12 @@ export class UnlitBatch extends Mesh {
       const mesh = this.meshes[i];
       const instanceId = this.instanceIds[i];
 
-      // @ts-ignore: Hubs three fork
-      mesh.updateMatrices && mesh.updateMatrices();
+      // Hubs Fork
+      if ((mesh as any).updateMatrices) {
+        (mesh as any).updateMatrices();
+      }
 
-      //TODO need to account for nested visibility deeper than 1 level
+      // TODO need to account for nested visibility deeper than 1 level
       this.ubo.setInstanceTransform(instanceId, mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
       this.ubo.setInstanceColor(instanceId, mesh.material.color || DEFAULT_COLOR, mesh.material.opacity || 1);
     }
@@ -332,11 +334,29 @@ export class BatchManager {
     this.instanceCount = 0;
   }
 
-  addMesh(mesh: BatchableMesh) {
+  addMesh(mesh: Mesh) {
     if (this.instanceCount >= this.maxInstances) {
       console.warn("Batch is full, not batching", mesh);
       return false;
     }
+
+    if (!(mesh.geometry as BufferGeometry)) {
+      console.warn("Mesh does not use BufferGeometry, skipping.", mesh);
+      return false;
+    }
+
+    const attributes = (mesh.geometry as BufferGeometry).attributes;
+
+    for (const attributeName in attributes) {
+      const attribute = attributes[attributeName];
+
+      if ((attribute as any).isInterleavedBufferAttribute) {
+        console.warn("Mesh uses unsupported InterleavedBufferAttribute, skipping.", mesh);
+        return false;
+      }
+    }
+
+    const batchableMesh = mesh as BatchableMesh;
 
     let nextBatch = null;
 
@@ -345,9 +365,9 @@ export class BatchManager {
     for (let i = 0; i < this.batches.length; i++) {
       const batch = batches[i];
       if (
-        mesh.material.side === batch.material.side &&
-        batch.geometry.drawRange.count + mesh.geometry.index.count < batch.maxVertsPerDraw &&
-        batch.vertCount + mesh.geometry.attributes.position.count < batch.maxVertsPerDraw
+        batchableMesh.material.side === batch.material.side &&
+        batch.geometry.drawRange.count + batchableMesh.geometry.index.count < batch.maxVertsPerDraw &&
+        batch.vertCount + batchableMesh.geometry.attributes.position.count < batch.maxVertsPerDraw
       ) {
         nextBatch = batch;
         break;
@@ -356,23 +376,24 @@ export class BatchManager {
 
     if (nextBatch === null) {
       nextBatch = new UnlitBatch(this.ubo, this.atlas, { maxInstances: this.maxInstances });
-      nextBatch.material.side = mesh.material.side;
+      nextBatch.material.side = batchableMesh.material.side;
       this.scene.add(nextBatch);
       this.batches.push(nextBatch);
       console.log("Allocating new batch", this.batches.length);
     }
 
-    nextBatch.addMesh(mesh);
-    this.batchForMesh.set(mesh, nextBatch);
+    nextBatch.addMesh(batchableMesh);
+    this.batchForMesh.set(batchableMesh, nextBatch);
     this.instanceCount++;
 
     return true;
   }
 
-  removeMesh(mesh: BatchableMesh) {
-    const batch = this.batchForMesh.get(mesh);
-    batch.removeMesh(mesh);
-    this.batchForMesh.delete(mesh);
+  removeMesh(mesh: Mesh) {
+    const batchableMesh = mesh as BatchableMesh;
+    const batch = this.batchForMesh.get(batchableMesh);
+    batch.removeMesh(batchableMesh);
+    this.batchForMesh.delete(batchableMesh);
     this.instanceCount--;
   }
 
