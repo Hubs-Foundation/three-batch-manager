@@ -336,6 +336,11 @@ export class BatchManager {
       return false;
     }
 
+    if ((mesh as any).isSkinnedMesh) {
+      console.warn("SkinnedMesh is not supported, skipping.", mesh);
+      return false;
+    }
+
     if (!(mesh.geometry as BufferGeometry)) {
       console.warn("Mesh does not use BufferGeometry, skipping.", mesh);
       return false;
@@ -353,6 +358,16 @@ export class BatchManager {
     }
 
     const batchableMesh = mesh as BatchableMesh;
+
+    if (Array.isArray(mesh.material)) {
+      console.warn("Mesh uses unsupported multi-material, skipping.", mesh);
+      return false;
+    }
+
+    if (mesh.material.transparent || mesh.material.alphaTest !== 0) {
+      console.warn("Mesh uses unsupported transparency, skipping.", mesh);
+      return false;
+    }
 
     let nextBatch = null;
 
