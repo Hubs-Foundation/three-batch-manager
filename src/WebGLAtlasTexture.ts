@@ -144,20 +144,7 @@ export default class WebGLAtlasTexture extends Texture {
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
-    // gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGBA8, this.textureResolution, this.textureResolution, arrayDepth);
-
-    state.texImage3D(
-      gl.TEXTURE_2D_ARRAY,
-      0,
-      gl.RGBA,
-      this.textureResolution,
-      this.textureResolution,
-      arrayDepth,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      null
-    );
+    gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 13, gl.RGBA8, this.textureResolution, this.textureResolution, arrayDepth);
 
     textureProperties.__maxMipLevel = 0;
   }
@@ -278,12 +265,15 @@ export default class WebGLAtlasTexture extends Texture {
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, this.unpackAlignment);
 
     const layer = this.layers[layerIdx];
+    const xOffset = (atlasIdx % layer.colls) * layer.size;
+    const yOffset = Math.floor(atlasIdx / layer.rows) * layer.size;
+
     // console.log("Uploading image", layerIdx, atlasIdx, img.width, img.height);
     gl.texSubImage3D(
       gl.TEXTURE_2D_ARRAY, // target
       0, // level
-      (atlasIdx % layer.colls) * layer.size, // xoffset
-      Math.floor(atlasIdx / layer.rows) * layer.size, // yoffset
+      xOffset, // xoffset
+      yOffset, // yoffset
       layerIdx, // zoffset
       img.width, // width
       img.height, // height
@@ -292,6 +282,42 @@ export default class WebGLAtlasTexture extends Texture {
       gl.UNSIGNED_BYTE, // type
       img // pixels
     );
+
+    const readFrameBuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, readFrameBuffer);
+
+    const writeFrameBuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, writeFrameBuffer);
+
+    let curLevel = 1;
+    const size = Math.max(img.width, img.height);
+    let prevSize = size;
+    let curSize = size / 2;
+
+    while (curSize >= 1) {
+      const prevDivisor = 1 / curLevel;
+      const divisor = 1 / (curLevel + 1);
+      gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, curLevel - 1, layerIdx);
+      gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, curLevel, layerIdx);
+      gl.blitFramebuffer(
+        xOffset * prevDivisor,
+        yOffset * prevDivisor,
+        (xOffset + prevSize) * prevDivisor,
+        (yOffset + prevSize) * prevDivisor,
+        xOffset * divisor,
+        yOffset * divisor,
+        (xOffset + curSize) * divisor,
+        (yOffset + curSize) * divisor,
+        gl.COLOR_BUFFER_BIT,
+        gl.LINEAR
+      );
+      prevSize = curSize;
+      curLevel++;
+      curSize /= 2;
+    }
+
+    gl.deleteFramebuffer(readFrameBuffer);
+    gl.deleteFramebuffer(writeFrameBuffer);
   }
 
   removeTexture(texture: Texture) {
