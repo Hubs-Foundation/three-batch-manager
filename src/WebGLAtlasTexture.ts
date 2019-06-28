@@ -169,18 +169,23 @@ export default class WebGLAtlasTexture extends Texture {
     const prevGlTexture = this.glTexture;
     const prevArrayDepth = this.arrayDepth;
 
-    const framebuffer = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    const src = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
+    const dest = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dest);
 
     this.createTextureArray(newDepth);
 
+    const res = this.textureResolution;
     for (let i = 0; i < prevArrayDepth; i++) {
-      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, prevGlTexture, 0, i);
-      gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, 0, 0, this.textureResolution, this.textureResolution);
+      gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, prevGlTexture, 0, i);
+      gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, 0, i);
+      gl.blitFramebuffer(0, 0, res, res, 0, 0, res, res, gl.COLOR_BUFFER_BIT, gl.NEAREST);
     }
 
     gl.deleteTexture(prevGlTexture);
-    gl.deleteFramebuffer(framebuffer);
+    gl.deleteFramebuffer(src);
+    gl.deleteFramebuffer(dest);
   }
 
   addTexture(texture: Texture, uvTransform: UVTransform) {
