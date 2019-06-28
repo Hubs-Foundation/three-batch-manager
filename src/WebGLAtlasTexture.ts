@@ -1,4 +1,4 @@
-import { Texture, Math as ThreeMath, WebGLRenderer } from "three";
+import { Texture, Math as ThreeMath, WebGLRenderer, CanvasTexture } from "three";
 
 export type TileID = number;
 export type LayerID = number;
@@ -62,6 +62,7 @@ export default class WebGLAtlasTexture extends Texture {
   glTexture: WebGLTexture;
   arrayDepth: number;
   nullTextureTransform: UVTransform;
+  textures: Map<Texture, { count: number; id: TextureID; uvTransform: number[] }>;
 
   constructor(renderer: WebGLRenderer, textureResolution = 4096, minAtlasSize = 512) {
     super();
@@ -71,6 +72,8 @@ export default class WebGLAtlasTexture extends Texture {
     this.canvas = document.createElement("canvas");
     this.canvas.width = this.canvas.height = textureResolution;
     this.canvasCtx = this.canvas.getContext("2d");
+
+    this.textures = new Map();
 
     this.textureResolution = textureResolution;
     this.minAtlasSize = minAtlasSize;
@@ -180,7 +183,20 @@ export default class WebGLAtlasTexture extends Texture {
     gl.deleteFramebuffer(framebuffer);
   }
 
-  addImage(img: UploadableImage, flipY: boolean, uvTransform: UVTransform) {
+  addTexture(texture: Texture, uvTransform: UVTransform) {
+    const textureInfo = this.textures.get(texture);
+
+    if (textureInfo) {
+      textureInfo.count++;
+
+      for (let i = 0; i < 4; i++) {
+        uvTransform[i] = textureInfo.uvTransform[i];
+      }
+
+      return textureInfo.id;
+    }
+
+    const img = texture.image;
     let width = img.width;
     let height = img.height;
     let size;
@@ -220,10 +236,16 @@ export default class WebGLAtlasTexture extends Texture {
     uvTransform[2] = (1 / layer.colls) * (width / layer.size);
     uvTransform[3] = (1 / layer.rows) * (height / layer.size);
 
-    if (flipY) {
+    if (texture.flipY) {
       uvTransform[1] = uvTransform[1] + uvTransform[3];
       uvTransform[3] = -uvTransform[3];
     }
+
+    this.textures.set(texture, {
+      id,
+      count: 1,
+      uvTransform: uvTransform.slice()
+    });
 
     // console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
 
@@ -235,7 +257,7 @@ export default class WebGLAtlasTexture extends Texture {
     this.canvas.height = size;
     this.canvasCtx.fillStyle = color;
     this.canvasCtx.fillRect(0, 0, size, size);
-    return this.addImage(this.canvas, false, uvTransform);
+    return this.addTexture(new CanvasTexture(this.canvas), uvTransform);
   }
 
   uploadImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage) {
@@ -267,7 +289,17 @@ export default class WebGLAtlasTexture extends Texture {
     );
   }
 
-  removeImage([layerIdx, atlasIdx]: TextureID) {
+  removeTexture(texture: Texture) {
+    const textureInfo = this.textures.get(texture);
+
+    textureInfo.count--;
+
+    if (textureInfo.count !== 0) {
+      return;
+    }
+
+    const [layerIdx, atlasIdx] = textureInfo.id;
+
     const layer = this.layers[layerIdx];
 
     this.canvas.width = this.canvas.height = layer.size;
@@ -279,6 +311,8 @@ export default class WebGLAtlasTexture extends Texture {
       // console.log("Freeing layer", layer);
       this.freeLayers.push(layerIdx);
     }
+
+    this.textures.delete(texture);
 
     // console.log("Remove", layerIdx, atlasIdx, layer, this.freeLayers);
   }
