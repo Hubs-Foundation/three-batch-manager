@@ -178,7 +178,7 @@ void main() {
 
   vec2 uvMin = vUVTransform.xy;
   vec2 uvScale = vUVTransform.zw;
-  uv = uv * uvScale + uvMin;
+  uv *= uvScale + uvMin;
 
   int mapIdx = int(vMapSettings.x);
   outColor = texture(map, vec3(uv, mapIdx)) * vColor;
