@@ -10,7 +10,8 @@ import {
   Scene,
   WebGLRenderer,
   BufferAttribute,
-  MeshBasicMaterial
+  MeshBasicMaterial,
+  ClampToEdgeWrapping
 } from "three";
 import WebGLAtlasTexture, { TextureID } from "./WebGLAtlasTexture";
 import { vertexShader, fragmentShader, BatchRawUniformGroup, InstanceID } from "./UnlitBatchShader";
@@ -195,10 +196,15 @@ export class UnlitBatch extends Mesh {
       this.textureIds.push(textureId);
 
       this.ubo.setInstanceUVTransform(instanceId, tempVec4Array);
-      this.ubo.setInstanceMapIndex(instanceId, textureId[0]);
+      this.ubo.setInstanceMapSettings(instanceId, textureId[0], material.map.wrapS, material.map.wrapT);
     } else {
       this.ubo.setInstanceUVTransform(instanceId, this.atlas.nullTextureTransform);
-      this.ubo.setInstanceMapIndex(instanceId, this.atlas.nullTextureIndex[0]);
+      this.ubo.setInstanceMapSettings(
+        instanceId,
+        this.atlas.nullTextureIndex[0],
+        ClampToEdgeWrapping,
+        ClampToEdgeWrapping
+      );
       this.textureIds.push(null);
     }
 
