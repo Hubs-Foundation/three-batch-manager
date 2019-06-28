@@ -1,4 +1,4 @@
-import { RawUniformsGroup, Color, Matrix4 } from "three";
+import { RawUniformsGroup, Color, Matrix4, ClampToEdgeWrapping, RepeatWrapping, MirroredRepeatWrapping } from "three";
 import { LayerID } from "./WebGLAtlasTexture";
 
 /**
@@ -13,11 +13,18 @@ export const INSTANCE_DATA_BYTE_LENGTH = 112;
 export type InstanceID = number;
 
 const tempVec4Array = [0, 0, 0, 0];
+
+const WrapModes = {
+  [ClampToEdgeWrapping]: 0,
+  [RepeatWrapping]: 1,
+  [MirroredRepeatWrapping]: 2
+};
+
 export class BatchRawUniformGroup extends RawUniformsGroup {
   transforms: Float32Array;
   colors: Float32Array;
   uvTransforms: Float32Array;
-  mapIndices: Uint32Array;
+  mapSettings: Float32Array;
 
   private nextIdx: InstanceID;
   private freed: InstanceID[];
@@ -39,7 +46,8 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
     this.uvTransforms = new Float32Array(this.data, offset, 4 * maxInstances);
     offset += this.uvTransforms.byteLength;
 
-    this.mapIndices = new Uint32Array(this.data, offset, 4 * maxInstances);
+    // [textureIndex, wrapS, wrapT, FREE] vec4 aligned so 4th element is free for use
+    this.mapSettings = new Float32Array(this.data, offset, 4 * maxInstances);
 
     this.nextIdx = 0;
     this.freed = [];
@@ -71,8 +79,10 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
     this.uvTransforms.set(transformVec4, instanceId * 4);
   }
 
-  setInstanceMapIndex(instanceId: InstanceID, mapIndex: LayerID) {
-    this.mapIndices[instanceId * 4] = mapIndex;
+  setInstanceMapSettings(instanceId: InstanceID, mapIndex: LayerID, wrapS: number, wrapT: number) {
+    this.mapSettings[instanceId * 4] = mapIndex;
+    this.mapSettings[instanceId * 4 + 1] = WrapModes[wrapS] || 0;
+    this.mapSettings[instanceId * 4 + 2] = WrapModes[wrapT] || 0;
   }
 }
 
@@ -88,7 +98,7 @@ layout(std140) uniform InstanceData {
   mat4 transforms[MAX_INSTANCES];
   vec4 colors[MAX_INSTANCES];
   vec4 uvTransforms[MAX_INSTANCES];
-  uint mapIndices[MAX_INSTANCES];
+  vec4 mapSettings[MAX_INSTANCES];
 } instanceData;
 
 in vec3 position;
@@ -104,9 +114,9 @@ in vec3 color;
 
 out vec2 vUv;
 out vec4 vColor;
-flat out uint vMapIdx;
 
 flat out vec4 vUVTransform;
+flat out vec4 vMapSettings;
 
 void main() {
   #ifdef PSEUDO_INSTANCING
@@ -122,13 +132,13 @@ void main() {
   #endif
 
   vUVTransform = instanceData.uvTransforms[instanceIndex];
+  vMapSettings = instanceData.mapSettings[instanceIndex];
 
   vec2 uvMin = vUVTransform.xy;
   vec2 uvScale = vUVTransform.zw;
 
-  vUv = uvMin + (uv * uvScale);
+  vUv = uv;
 
-  vMapIdx = instanceData.mapIndices[instanceIndex];
   gl_Position = projectionMatrix * viewMatrix * instanceData.transforms[instanceIndex] * vec4(position, 1.0);
 }
 `;
@@ -142,17 +152,38 @@ uniform sampler2DArray map;
 
 in vec2 vUv;
 in vec4 vColor;
-flat in uint vMapIdx;
 flat in vec4 vUVTransform;
+flat in vec4 vMapSettings;
 
 out vec4 outColor;
 
+float applyWrapping(float value, int mode) {
+  if (mode == 0) {
+    // CLAMP_TO_EDGE - default
+    return clamp(value, 0.0, 1.0);
+  } else if (mode == 1) {
+    // REPEAT
+    return fract(value);
+  } else {
+    // MIRRORED_REPEAT
+    float n = mod(value, 2.0);
+    return mix(n, 2.0 - n, step(1.0, n));
+  }
+}
+
 void main() {
-  vec2 uvMin = vUVTransform.xy;
-  vec2 uvScale = vUVTransform.zw;
   vec2 uv = vUv;
 
-  uv = fract((uv - uvMin) / uvScale) * uvScale + uvMin;
-  outColor = texture(map, vec3(uv, vMapIdx)) * vColor;
+  int wrapS = int(vMapSettings.y);
+  int wrapT = int(vMapSettings.z);
+  uv.s = applyWrapping(uv.s, wrapS);
+  uv.t = applyWrapping(uv.t, wrapT);
+
+  vec2 uvMin = vUVTransform.xy;
+  vec2 uvScale = vUVTransform.zw;
+  uv = uv * uvScale + uvMin;
+
+  int mapIdx = int(vMapSettings.x);
+  outColor = texture(map, vec3(uv, mapIdx)) * vColor;
 }
 `;
