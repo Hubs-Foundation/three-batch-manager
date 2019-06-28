@@ -76,7 +76,9 @@ function loadTexture(url: string): Promise<Texture> {
   );
 }
 
-const nonBactchedColor = new Color(100, 0, 100);
+let lastFrame = 0;
+const nonBatchedColor = new Color().setRGB(Math.random() * 10, Math.random() * 10, Math.random() * 10);
+const nonBatchedMatrials: MeshBasicMaterial[] = [];
 
 function addImage(texture: Texture) {
   const imageGeometry = new PlaneBufferGeometry();
@@ -87,7 +89,7 @@ function addImage(texture: Texture) {
 
   if (!batchManager.addMesh(imageMesh)) {
     const material = imageMesh.material as MeshBasicMaterial;
-    material.color.add(nonBactchedColor);
+    nonBatchedMatrials.push(material);
   }
 
   return imageMesh;
@@ -101,10 +103,10 @@ function addGlTF(gltf: GLTF) {
       if (!batchManager.addMesh(object)) {
         if (Array.isArray(object.material)) {
           for (const material of object.material) {
-            material.color.add(nonBactchedColor);
+            nonBatchedMatrials.push(material);
           }
         } else {
-          object.material.color.add(nonBactchedColor);
+          nonBatchedMatrials.push(object.material);
         }
       }
     }
@@ -230,11 +232,25 @@ const clock = new Clock();
 
 function render() {
   const dt = clock.getDelta();
+  const time = clock.getElapsedTime();
 
   for (let i = 0; i < mixers.length; i++) {
     mixers[i].update(dt);
   }
+
+  const curFrame = Math.round(time) % 2;
+
+  if (lastFrame !== curFrame) {
+    lastFrame = curFrame;
+    nonBatchedColor.setRGB(Math.random() * 10, Math.random() * 10, Math.random() * 10);
+  }
+
+  for (let i = 0; i < nonBatchedMatrials.length; i++) {
+    nonBatchedMatrials[i].color.copy(nonBatchedColor);
+  }
+
   batchManager.update();
+
   renderer.render(scene, camera);
 }
 
