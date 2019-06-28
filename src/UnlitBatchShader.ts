@@ -131,13 +131,10 @@ void main() {
   vColor *= vec4(color, 1.0);
   #endif
 
+  vUv = uv;
   vUVTransform = instanceData.uvTransforms[instanceIndex];
   vMapSettings = instanceData.mapSettings[instanceIndex];
-
-  vec2 uvMin = vUVTransform.xy;
-  vec2 uvScale = vUVTransform.zw;
-
-  vUv = uv;
+  
 
   gl_Position = projectionMatrix * viewMatrix * instanceData.transforms[instanceIndex] * vec4(position, 1.0);
 }
