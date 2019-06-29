@@ -183,7 +183,7 @@ export default class WebGLAtlasTexture extends Texture {
     ];
 
     for (let i = 0; i < this.arrayDepth; i++) {
-      for (let curLevel = 0; curLevel < Math.log2(this.textureResolution) + 1; curLevel++) {
+      for (let curLevel = 1; curLevel < Math.log2(this.textureResolution) + 1; curLevel++) {
         gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, curLevel, i);
         const c = mipColors[curLevel];
         gl.clearColor(c[0], c[1], c[2], c[3]);
@@ -211,11 +211,11 @@ export default class WebGLAtlasTexture extends Texture {
     debug.style.backgroundPosition = "0 0, 0 10px, 10px -10px, -10px 0px";
     debug.style.backgroundColor = "white";
 
-    for (let curLevel = 0; curLevel < Math.log2(this.textureResolution) + 1; curLevel++) {
-      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, curLevel, layer);
+    for (let mipLevel = 0; mipLevel < Math.log2(this.textureResolution) + 1; mipLevel++) {
+      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, mipLevel, layer);
 
       const c = document.createElement("canvas") as HTMLCanvasElement;
-      c.width = c.height = this.textureResolution / Math.pow(2, curLevel);
+      c.width = c.height = this.textureResolution / Math.pow(2, mipLevel);
       c.style.display = "block";
       const ctx = c.getContext("2d");
       const imgData = ctx.createImageData(c.width, c.height);
@@ -247,11 +247,13 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.createTextureArray(newDepth);
 
-    const res = this.textureResolution;
-    for (let i = 0; i < prevArrayDepth; i++) {
-      gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, prevGlTexture, 0, i);
-      gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, 0, i);
-      gl.blitFramebuffer(0, 0, res, res, 0, 0, res, res, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    for (let mipLevel = 0; mipLevel < Math.log2(this.textureResolution) + 1; mipLevel++) {
+      for (let z = 0; z < prevArrayDepth; z++) {
+        const res = this.textureResolution / Math.pow(2, mipLevel);
+        gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, prevGlTexture, mipLevel, z);
+        gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, mipLevel, z);
+        gl.blitFramebuffer(0, 0, res, res, 0, 0, res, res, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      }
     }
 
     gl.deleteTexture(prevGlTexture);
@@ -382,7 +384,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     const layer = this.layers[layerIdx];
 
-    let curLevel = 1;
+    let mipLevel = 1;
     const size = layer.size;
     let prevSize = size;
     let curSize = size / 2;
@@ -391,8 +393,8 @@ export default class WebGLAtlasTexture extends Texture {
     const c = Math.floor(atlasIdx / layer.rows);
 
     while (curSize >= 1) {
-      gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, curLevel - 1, layerIdx);
-      gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, curLevel, layerIdx);
+      gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, mipLevel - 1, layerIdx);
+      gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, mipLevel, layerIdx);
 
       const srcX = r * prevSize;
       const srcY = c * prevSize;
@@ -407,7 +409,7 @@ export default class WebGLAtlasTexture extends Texture {
       gl.blitFramebuffer(srcX, srcY, srcX2, srcY2, destX, destY, destX2, destY2, gl.COLOR_BUFFER_BIT, gl.LINEAR);
 
       prevSize = curSize;
-      curLevel++;
+      mipLevel++;
       curSize /= 2;
     }
 
