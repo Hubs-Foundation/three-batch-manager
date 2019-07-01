@@ -112,7 +112,7 @@ export class UnlitBatch extends Mesh {
     this.ubo = ubo;
   }
 
-  addMesh(mesh: BatchableMesh) {
+  addMesh(mesh: BatchableMesh): boolean {
     const geometry = mesh.geometry;
     const material = mesh.material;
 
@@ -120,6 +120,37 @@ export class UnlitBatch extends Mesh {
 
     // const meshIndiciesAttribute = geometry.index;
     const instanceId = this.ubo.nextId();
+
+    if (material.map && material.map.image) {
+      const textureId = this.material.uniforms.map.value.addTexture(material.map, tempVec4Array);
+
+      if (textureId === undefined) {
+        console.warn("Mesh could not be batched. Texture atlas full.");
+        return false;
+      }
+
+      this.textureIds.push(textureId);
+
+      this.ubo.setInstanceUVTransform(instanceId, tempVec4Array);
+      this.ubo.setInstanceMapSettings(instanceId, textureId[0], material.map.wrapS, material.map.wrapT);
+    } else {
+      this.ubo.setInstanceUVTransform(instanceId, this.atlas.nullTextureTransform);
+      this.ubo.setInstanceMapSettings(
+        instanceId,
+        this.atlas.nullTextureIndex[0],
+        ClampToEdgeWrapping,
+        ClampToEdgeWrapping
+      );
+      this.textureIds.push(null);
+    }
+
+    this.ubo.setInstanceTransform(instanceId, mesh.matrixWorld);
+    this.ubo.setInstanceColor(instanceId, material.color || DEFAULT_COLOR, material.opacity || 1);
+    this.material.needsUpdate = true;
+
+    // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
+    mesh.layers.disable(0);
+
     const meshIndices = geometry.index.array;
     const meshIndicesCount = geometry.index.count;
     const meshVertCount = geometry.attributes.position.count;
@@ -182,67 +213,10 @@ export class UnlitBatch extends Mesh {
 
     this.geometry.index.needsUpdate = true;
 
-    if (material.map && material.map.image) {
-      // this.baseColorMapCtx.globalCompositeOperation = "source-over";
-      // this.baseColorMapCtx.drawImage(
-      //   material.map.image,
-      //   (instanceId % this.atlasSize) * this.textureResolution,
-      //   Math.floor(instanceId / this.atlasSize) * this.textureResolution,
-      //   this.textureResolution,
-      //   this.textureResolution
-      // );
-
-      const textureId = this.material.uniforms.map.value.addTexture(material.map, tempVec4Array);
-      this.textureIds.push(textureId);
-
-      this.ubo.setInstanceUVTransform(instanceId, tempVec4Array);
-      this.ubo.setInstanceMapSettings(instanceId, textureId[0], material.map.wrapS, material.map.wrapT);
-    } else {
-      this.ubo.setInstanceUVTransform(instanceId, this.atlas.nullTextureTransform);
-      this.ubo.setInstanceMapSettings(
-        instanceId,
-        this.atlas.nullTextureIndex[0],
-        ClampToEdgeWrapping,
-        ClampToEdgeWrapping
-      );
-      this.textureIds.push(null);
-    }
-
-    // if (material.emissiveMap && material.emissiveMap.image) {
-    //   this.baseColorMapCtx.globalCompositeOperation = "lighter";
-    //   this.baseColorMapCtx.drawImage(
-    //     material.emissiveMap.image,
-    //     (instanceId % this.atlasSize) * this.textureResolution,
-    //     Math.floor(instanceId / this.atlasSize) * this.textureResolution,
-    //     this.textureResolution,
-    //     this.textureResolution
-    //   );
-    // }
-
-    // TODO: Find a way to add just the occlusion (Red) channel
-    // Maybe move to creating the texture with WebGL?
-    // if (material.aoMap && material.aoMap.image) {
-    //   this.baseColorMapCtx.globalCompositeOperation = "lighter"
-    //   this.baseColorMapCtx.drawImage(
-    //     material.aoMap.image,
-    //     instanceId % this.atlasSize * this.textureResolution,
-    //     Math.floor(instanceId / this.atlasSize) * this.textureResolution,
-    //     this.textureResolution,
-    //     this.textureResolution
-    //   );
-    // }
-
-    // batchUniforms.map.value.needsUpdate = true;
-
-    this.ubo.setInstanceTransform(instanceId, mesh.matrixWorld);
-    this.ubo.setInstanceColor(instanceId, material.color || DEFAULT_COLOR, material.opacity || 1);
-    this.material.needsUpdate = true;
-
-    // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
-    mesh.layers.disable(0);
-
     this.meshes.push(mesh);
     this.instanceIds.push(instanceId);
+
+    return true;
   }
 
   removeMesh(mesh: BatchableMesh) {
@@ -418,7 +392,10 @@ export class BatchManager {
       console.log("Allocating new batch", this.batches.length);
     }
 
-    nextBatch.addMesh(batchableMesh);
+    if (!nextBatch.addMesh(batchableMesh)) {
+      return false;
+    }
+
     this.batchForMesh.set(batchableMesh, nextBatch);
     this.instanceCount++;
 
