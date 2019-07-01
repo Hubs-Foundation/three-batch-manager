@@ -10,10 +10,16 @@
   ],
   "scripts": {
     "start": "webpack-dev-server --config ./example/webpack.config.js",
-    "build": "run-p build:commonjs build:es2015 build:declaration",
-    "build:commonjs": "tsc -p ./src/tsconfig.json --module commonjs --outDir ./lib/commonjs",
-    "build:es2015": "tsc -p ./src/tsconfig.json --module es2015 --outDir ./lib/es2015 --target es2015",
-    "build:declaration": "tsc -p ./src/tsconfig.json --module es2015 --target es2015 --emitDeclarationOnly --declaration --declarationDir ./lib/types --allowJS false",
+
+    "build": "run-p build:**",
+    "build:es2015": "tsc -p ./src/tsconfig.json",
+    "build:commonjs": "tsc -p ./src/cjs-tsconfig.json",
+    "build:declaration": "tsc -p ./src/tsconfig.json --emitDeclarationOnly --declaration --outDir ./lib/types --allowJS false",
+
+    "watch": "run-p -l watch:**",
+    "watch:es2015": "tsc -w -p ./src/tsconfig.json",
+    "watch:commonjs": "tsc -w -p ./src/cjs-tsconfig.json",
+
     "lint": "tslint -c tslint.json -p ./lint-tsconfig.json"
   },
   "author": "Robert Long",
