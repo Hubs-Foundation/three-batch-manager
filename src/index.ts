@@ -33,14 +33,14 @@ interface BatchableMesh extends Mesh {
 }
 
 interface UnlitBatchOptions {
-  maxVertsPerDraw: number;
+  bufferSize: number;
   enableVertexColors: boolean;
   pseudoInstancing: boolean;
   maxInstances: number;
 }
 
 export class UnlitBatch extends Mesh {
-  maxVertsPerDraw: number;
+  bufferSize: number;
   enableVertexColors: boolean;
   maxInstances: number;
   vertCount: number;
@@ -58,7 +58,7 @@ export class UnlitBatch extends Mesh {
   constructor(ubo: BatchRawUniformGroup, atlas: WebGLAtlasTexture, options = {}) {
     const opts: UnlitBatchOptions = Object.assign(
       {
-        maxVertsPerDraw: 65536 * 2,
+        bufferSize: 65536,
         enableVertexColors: true,
         pseudoInstancing: true,
         maxInstances: 512
@@ -67,15 +67,15 @@ export class UnlitBatch extends Mesh {
     );
 
     const geometry = new BufferGeometry();
-    geometry.addAttribute("instance", new Float32BufferAttribute(new Float32Array(opts.maxVertsPerDraw), 1));
-    geometry.addAttribute("position", new Float32BufferAttribute(new Float32Array(opts.maxVertsPerDraw * 3), 3));
+    geometry.addAttribute("instance", new Float32BufferAttribute(new Float32Array(opts.bufferSize), 1));
+    geometry.addAttribute("position", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 3), 3));
 
     if (opts.enableVertexColors) {
-      geometry.addAttribute("color", new Float32BufferAttribute(new Float32Array(opts.maxVertsPerDraw * 3).fill(1), 3));
+      geometry.addAttribute("color", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 3).fill(1), 3));
     }
 
-    geometry.addAttribute("uv", new Float32BufferAttribute(new Float32Array(opts.maxVertsPerDraw * 2), 2));
-    geometry.setIndex(new Uint32BufferAttribute(new Uint32Array(opts.maxVertsPerDraw), 1));
+    geometry.addAttribute("uv", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 2), 2));
+    geometry.setIndex(new Uint32BufferAttribute(new Uint32Array(opts.bufferSize), 1));
     geometry.setDrawRange(0, 0);
 
     const material = new RawShaderMaterial({
@@ -95,7 +95,7 @@ export class UnlitBatch extends Mesh {
 
     super(geometry, material);
 
-    this.maxVertsPerDraw = opts.maxVertsPerDraw;
+    this.bufferSize = opts.bufferSize;
     this.enableVertexColors = opts.enableVertexColors;
     this.maxInstances = opts.maxInstances;
 
@@ -309,6 +309,11 @@ export class UnlitBatch extends Mesh {
   }
 }
 
+interface BatchManagerOptions {
+  maxInstances?: number;
+  maxBufferSize?: number;
+}
+
 export class BatchManager {
   scene: Scene;
   renderer: WebGLRenderer;
@@ -316,22 +321,25 @@ export class BatchManager {
   maxInstances: number;
   instanceCount: number;
 
+  maxBufferSize: number;
+
   batchForMesh: WeakMap<BatchableMesh, UnlitBatch>;
   batches: UnlitBatch[];
 
   atlas: WebGLAtlasTexture;
   ubo: BatchRawUniformGroup;
 
-  constructor(scene: Scene, renderer: WebGLRenderer, maxInstances = 512) {
+  constructor(scene: Scene, renderer: WebGLRenderer, options: BatchManagerOptions = {}) {
     this.scene = scene;
     this.renderer = renderer;
-    this.maxInstances = maxInstances;
+    this.maxInstances = options.maxInstances || 512;
+    this.maxBufferSize = options.maxBufferSize || 65536;
 
     this.batches = [];
     this.batchForMesh = new WeakMap();
 
     this.atlas = new WebGLAtlasTexture(renderer);
-    this.ubo = new BatchRawUniformGroup(maxInstances);
+    this.ubo = new BatchRawUniformGroup(this.maxInstances);
 
     this.instanceCount = 0;
   }
@@ -379,12 +387,20 @@ export class BatchManager {
 
     const batches = this.batches;
 
+    const indexCount = batchableMesh.geometry.index.count;
+    const vertCount = batchableMesh.geometry.attributes.position.count;
+
+    if (indexCount > this.maxBufferSize || vertCount > this.maxBufferSize) {
+      return false;
+    }
+
     for (let i = 0; i < this.batches.length; i++) {
       const batch = batches[i];
+
       if (
         batchableMesh.material.side === batch.material.side &&
-        batch.geometry.drawRange.count + batchableMesh.geometry.index.count < batch.maxVertsPerDraw &&
-        batch.vertCount + batchableMesh.geometry.attributes.position.count < batch.maxVertsPerDraw
+        batch.geometry.drawRange.count + indexCount < batch.bufferSize &&
+        batch.vertCount + batchableMesh.geometry.attributes.position.count < batch.bufferSize
       ) {
         nextBatch = batch;
         break;
@@ -392,7 +408,10 @@ export class BatchManager {
     }
 
     if (nextBatch === null) {
-      nextBatch = new UnlitBatch(this.ubo, this.atlas, { maxInstances: this.maxInstances });
+      nextBatch = new UnlitBatch(this.ubo, this.atlas, {
+        maxInstances: this.maxInstances,
+        bufferSize: this.maxBufferSize
+      });
       nextBatch.material.side = batchableMesh.material.side;
       this.scene.add(nextBatch);
       this.batches.push(nextBatch);
