@@ -191,8 +191,6 @@ export default class WebGLAtlasTexture extends Texture {
   generateDebugMips() {
     const gl = this.renderer.context as WebGL2RenderingContext;
 
-    const fb = gl.createFramebuffer();
-
     const mipColors = [
       null,
       [1, 0, 0, 1],
@@ -221,8 +219,6 @@ export default class WebGLAtlasTexture extends Texture {
         gl.clear(gl.COLOR_BUFFER_BIT);
       }
     }
-
-    gl.deleteFramebuffer(fb);
   }
 
   debugDumpMips(layer: LayerID = 0) {
