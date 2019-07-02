@@ -50,14 +50,21 @@ class Layer {
   }
 }
 
+export interface WebGLAtlasTextureOptions {
+  layerResolution?: number;
+  minTileSize?: number;
+  maxLayers?: number;
+}
+
 export default class WebGLAtlasTexture extends Texture {
   renderer: WebGLRenderer;
   canvas: HTMLCanvasElement;
   canvasCtx: CanvasRenderingContext2D;
-  textureResolution: number;
-  minAtlasSize: number;
+  layerResolution: number;
+  minTileSize: number;
   freeLayers: LayerID[];
   layers: Layer[];
+  maxLayers: number;
   nullTextureIndex: TextureID;
   glTexture: WebGLTexture;
   arrayDepth: number;
@@ -65,29 +72,30 @@ export default class WebGLAtlasTexture extends Texture {
   nullTextureTransform: UVTransform;
   textures: Map<Texture, { count: number; id: TextureID; uvTransform: number[] }>;
 
-  constructor(renderer: WebGLRenderer, textureResolution = 4096, minAtlasSize = 512) {
+  constructor(renderer: WebGLRenderer, options: WebGLAtlasTextureOptions = {}) {
     super();
 
     this.renderer = renderer;
 
+    this.layerResolution = options.layerResolution || 4096;
+    this.minTileSize = options.minTileSize || 512;
+
     this.canvas = document.createElement("canvas");
-    this.canvas.width = this.canvas.height = textureResolution;
+    this.canvas.width = this.canvas.height = this.layerResolution;
     this.canvasCtx = this.canvas.getContext("2d");
 
     this.textures = new Map();
 
-    this.textureResolution = textureResolution;
-    this.minAtlasSize = minAtlasSize;
-
     this.freeLayers = [];
     this.layers = [];
+    this.maxLayers = options.maxLayers || 8;
 
     this.flipY = false;
 
     this.createTextureArray(3);
 
     this.nullTextureTransform = [0, 0, 0, 0];
-    this.nullTextureIndex = this.addColorRect(this.minAtlasSize, "white", this.nullTextureTransform);
+    this.nullTextureIndex = this.addColorRect(this.minTileSize, "white", this.nullTextureTransform);
   }
 
   getLayerWithSpace(size: number) {
@@ -101,22 +109,31 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   allocLayer(size: number) {
-    const rows = this.textureResolution / size;
+    const rows = this.layerResolution / size;
     if (this.freeLayers.length) {
       const layerIdx = this.freeLayers.pop();
       this.layers[layerIdx].recycle(size, rows, rows);
       return layerIdx;
     } else {
+      if (this.layers.length === this.maxLayers) {
+        return -1;
+      }
+
       if (this.layers.length === this.arrayDepth) {
-        this.growTextureArray(Math.ceil(this.arrayDepth * 1.5));
+        this.growTextureArray(Math.min(Math.ceil(this.arrayDepth * 1.5), this.maxLayers));
       }
       this.layers.push(new Layer(size, rows, rows));
       return this.layers.length - 1;
     }
   }
 
-  nextId(size: number): TextureID {
-    const layerIdx = this.getLayerWithSpace(Math.max(size, this.minAtlasSize));
+  nextId(size: number): TextureID | undefined {
+    const layerIdx = this.getLayerWithSpace(Math.max(size, this.minTileSize));
+
+    if (layerIdx === -1) {
+      return undefined;
+    }
+
     return [layerIdx, this.layers[layerIdx].nextId()];
   }
 
@@ -147,13 +164,13 @@ export default class WebGLAtlasTexture extends Texture {
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
 
-    textureProperties.__maxMipLevel = Math.log2(this.textureResolution) + 1;
+    textureProperties.__maxMipLevel = Math.log2(this.layerResolution) + 1;
     gl.texStorage3D(
       gl.TEXTURE_2D_ARRAY,
       textureProperties.__maxMipLevel,
       gl.RGBA8,
-      this.textureResolution,
-      this.textureResolution,
+      this.layerResolution,
+      this.layerResolution,
       arrayDepth
     );
 
@@ -197,7 +214,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     for (let i = 0; i < this.arrayDepth; i++) {
       const mips = this.mipFramebuffers[i];
-      for (let curLevel = 1; curLevel < Math.log2(this.textureResolution) + 1; curLevel++) {
+      for (let curLevel = 1; curLevel < Math.log2(this.layerResolution) + 1; curLevel++) {
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, mips[curLevel]);
         const c = mipColors[curLevel];
         gl.clearColor(c[0], c[1], c[2], c[3]);
@@ -226,11 +243,11 @@ export default class WebGLAtlasTexture extends Texture {
     debug.style.backgroundColor = "white";
 
     const mips = this.mipFramebuffers[layer];
-    for (let mipLevel = 0; mipLevel < Math.log2(this.textureResolution) + 1; mipLevel++) {
+    for (let mipLevel = 0; mipLevel < Math.log2(this.layerResolution) + 1; mipLevel++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, mips[mipLevel]);
 
       const c = document.createElement("canvas") as HTMLCanvasElement;
-      c.width = c.height = this.textureResolution / Math.pow(2, mipLevel);
+      c.width = c.height = this.layerResolution / Math.pow(2, mipLevel);
       c.style.display = "block";
       const ctx = c.getContext("2d");
       const imgData = ctx.createImageData(c.width, c.height);
@@ -257,10 +274,10 @@ export default class WebGLAtlasTexture extends Texture {
     const prevMipFramebuffers = this.mipFramebuffers;
 
     this.createTextureArray(newDepth);
-    const maxMipLevels = Math.log2(this.textureResolution) + 1;
+    const maxMipLevels = Math.log2(this.layerResolution) + 1;
     for (let z = 0; z < prevArrayDepth; z++) {
       for (let mipLevel = 0; mipLevel < maxMipLevels; mipLevel++) {
-        const res = this.textureResolution / Math.pow(2, mipLevel);
+        const res = this.layerResolution / Math.pow(2, mipLevel);
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, prevMipFramebuffers[z][mipLevel]);
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.mipFramebuffers[z][mipLevel]);
         gl.blitFramebuffer(0, 0, res, res, 0, 0, res, res, gl.COLOR_BUFFER_BIT, gl.NEAREST);
@@ -277,7 +294,7 @@ export default class WebGLAtlasTexture extends Texture {
     gl.deleteTexture(prevGlTexture);
   }
 
-  addTexture(texture: Texture, uvTransform: UVTransform) {
+  addTexture(texture: Texture, uvTransform: UVTransform): TextureID | undefined {
     const textureInfo = this.textures.get(texture);
 
     if (textureInfo) {
@@ -297,15 +314,23 @@ export default class WebGLAtlasTexture extends Texture {
 
     if (width > height) {
       const ratio = height / width;
-      width = Math.min(ThreeMath.floorPowerOfTwo(width), this.textureResolution);
+      width = Math.min(ThreeMath.floorPowerOfTwo(width), this.layerResolution);
       height = Math.round(width * ratio);
       size = width;
     } else {
       const ratio = width / height;
-      height = Math.min(ThreeMath.floorPowerOfTwo(height), this.textureResolution);
+      height = Math.min(ThreeMath.floorPowerOfTwo(height), this.layerResolution);
       width = Math.round(height * ratio);
       size = height;
     }
+
+    const id = this.nextId(size);
+
+    if (id === undefined) {
+      return undefined;
+    }
+
+    const [layerIdx, atlasIdx] = id;
 
     let imgToUpload = img;
 
@@ -317,9 +342,6 @@ export default class WebGLAtlasTexture extends Texture {
       this.canvasCtx.drawImage(img, 0, 0, width, height);
       imgToUpload = this.canvas;
     }
-
-    const id = this.nextId(size);
-    const [layerIdx, atlasIdx] = id;
 
     this.uploadImage(layerIdx, atlasIdx, imgToUpload);
 
@@ -346,7 +368,7 @@ export default class WebGLAtlasTexture extends Texture {
     return id;
   }
 
-  addColorRect(size: number, color: string, uvTransform: UVTransform) {
+  addColorRect(size: number, color: string, uvTransform: UVTransform): TextureID | undefined {
     this.canvas.width = size;
     this.canvas.height = size;
     this.canvasCtx.fillStyle = color;
