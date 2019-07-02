@@ -331,18 +331,11 @@ export default class WebGLAtlasTexture extends Texture {
 
     const [layerIdx, atlasIdx] = id;
 
-    let imgToUpload = img;
-
     if (width !== img.width || height !== img.height) {
-      // console.warn("resizing image from", img.width, img.height, "to", width, height);
-      this.canvas.width = width;
-      this.canvas.height = height;
-      this.canvasCtx.clearRect(0, 0, width, height);
-      this.canvasCtx.drawImage(img, 0, 0, width, height);
-      imgToUpload = this.canvas;
+      this.uploadAndResizeImage(layerIdx, atlasIdx, img, width, height);
+    } else {
+      this.uploadImage(layerIdx, atlasIdx, img);
     }
-
-    this.uploadImage(layerIdx, atlasIdx, imgToUpload);
 
     const layer = this.layers[layerIdx];
 
@@ -410,6 +403,51 @@ export default class WebGLAtlasTexture extends Texture {
     // gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
   }
 
+  uploadAndResizeImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage, width: number, height: number) {
+    const state = this.renderer.state;
+    const gl = this.renderer.context as WebGL2RenderingContext;
+
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, this.unpackAlignment);
+
+    const resizeTexture = gl.createTexture();
+    state.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, resizeTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+
+    // TODO: Figure out if we can reuse this framebuffer to avoid validation costs. Probably requires reusing the resizeTexture.
+    const resizeFramebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, resizeFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, resizeTexture, 0);
+
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, resizeFramebuffer);
+
+    const mips = this.mipFramebuffers[layerIdx];
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, mips[0]);
+
+    const layer = this.layers[layerIdx];
+    const xOffset = (atlasIdx % layer.colls) * layer.size;
+    const yOffset = Math.floor(atlasIdx / layer.rows) * layer.size;
+
+    gl.blitFramebuffer(
+      0,
+      0,
+      img.width,
+      img.height,
+      xOffset,
+      yOffset,
+      xOffset + width,
+      yOffset + height,
+      gl.COLOR_BUFFER_BIT,
+      gl.LINEAR
+    );
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    this.genMipmaps(layerIdx, atlasIdx);
+  }
+
   genMipmaps(layerIdx: LayerID, atlasIdx: TileID) {
     const gl = this.renderer.context as WebGL2RenderingContext;
 
@@ -461,6 +499,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     const layer = this.layers[layerIdx];
 
+    // TODO: Bind framebuffer and clear
     this.canvas.width = this.canvas.height = layer.size;
     this.canvasCtx.clearRect(0, 0, layer.size, layer.size);
     this.uploadImage(layerIdx, atlasIdx, this.canvas);
