@@ -185,6 +185,8 @@ export default class WebGLAtlasTexture extends Texture {
       this.mipFramebuffers.push(mips);
     }
 
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
     // this.generateDebugMips();
   }
 
@@ -287,6 +289,7 @@ export default class WebGLAtlasTexture extends Texture {
       }
     }
 
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.deleteTexture(prevGlTexture);
   }
 
@@ -441,6 +444,8 @@ export default class WebGLAtlasTexture extends Texture {
       mipLevel++;
       curSize /= 2;
     }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
   removeTexture(texture: Texture) {
