@@ -47,13 +47,13 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
 
   constructor(maxInstances: number, name = "InstanceData") {
     const hubsDataSize =
-      maxInstances * 4 * 4 + // padded sweepParams
+      maxInstances * 4 * 4 + // sweepParams
       4 *
-        (4 + // padded interactorOnePos
-        4 + // padded interactorTwoPos
+        (3 + // interactorOnePos
         1 + // isFrozen
-        1 + // time
-          2); // padding
+        3 + // interactorTwoPos
+        1  // time
+         );
     super(new ArrayBuffer(maxInstances * INSTANCE_DATA_BYTE_LENGTH + hubsDataSize));
     this.setName(name);
 
@@ -75,14 +75,14 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
     this.hubs_sweepParams = new Float32Array(this.data, offset, 4 * maxInstances);
     offset += this.hubs_sweepParams.byteLength;
 
-    this.hubs_interactorOnePos = new Float32Array(this.data, offset, 4);
+    this.hubs_interactorOnePos = new Float32Array(this.data, offset, 3);
     offset += this.hubs_interactorOnePos.byteLength;
-
-    this.hubs_interactorTwoPos = new Float32Array(this.data, offset, 4);
-    offset += this.hubs_interactorTwoPos.byteLength;
 
     this.hubs_isFrozen = new Uint32Array(this.data, offset, 1);
     offset += this.hubs_isFrozen.byteLength;
+
+    this.hubs_interactorTwoPos = new Float32Array(this.data, offset, 3);
+    offset += this.hubs_interactorTwoPos.byteLength;
 
     this.hubs_time = new Float32Array(this.data, offset, 1);
     offset += this.hubs_time.byteLength;
@@ -188,10 +188,10 @@ layout(std140) uniform InstanceData {
 
   vec4 hubs_SweepParams[MAX_INSTANCES];
 
-  vec4 hubs_InteractorOnePos;
-  vec4 hubs_InteractorTwoPos;
-
+  vec3 hubs_InteractorOnePos;
   bool hubs_IsFrozen;
+
+  vec3 hubs_InteractorTwoPos;
   float hubs_Time;
 
 } instanceData;
@@ -254,10 +254,10 @@ layout(std140) uniform InstanceData {
 
   vec4 hubs_SweepParams[MAX_INSTANCES];
 
-  vec4 hubs_InteractorOnePos;
-  vec4 hubs_InteractorTwoPos;
-
+  vec3 hubs_InteractorOnePos;
   bool hubs_IsFrozen;
+
+  vec3 hubs_InteractorTwoPos;
   float hubs_Time;
 
 } instanceData;
@@ -328,17 +328,17 @@ void main() {
       }
 
       // Highlight with a gradient falling off with distance.
-      // float pulse = 9.0 + 3.0 * (sin(hubs_Time / 1000.0) + 1.0);
+      float pulse = 9.0 + 3.0 * (sin(hubs_Time / 1000.0) + 1.0);
 
-      // if (hubs_HighlightInteractorOne) {
-      //     float dist1 = distance(hubs_WorldPosition, hubs_InteractorOnePos);
-      //     ratio += -min(1.0, pow(dist1 * pulse, 3.0)) + 1.0;
-      // }
+      if (hubs_HighlightInteractorOne) {
+          float dist1 = distance(hubs_WorldPosition, instanceData.hubs_InteractorOnePos);
+          ratio += -min(1.0, pow(dist1 * pulse, 3.0)) + 1.0;
+      }
 
-      // if (hubs_HighlightInteractorTwo) {
-      //     float dist2 = distance(hubs_WorldPosition, hubs_InteractorTwoPos);
-      //     ratio += -min(1.0, pow(dist2 * pulse, 3.0)) + 1.0;
-      // }
+      if (hubs_HighlightInteractorTwo) {
+          float dist2 = distance(hubs_WorldPosition, instanceData.hubs_InteractorTwoPos);
+          ratio += -min(1.0, pow(dist2 * pulse, 3.0)) + 1.0;
+      }
 
       ratio = min(1.0, ratio);
 
