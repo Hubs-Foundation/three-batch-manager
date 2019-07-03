@@ -243,6 +243,7 @@ export class UnlitBatch extends Mesh {
 interface BatchManagerOptions {
   maxInstances?: number;
   maxBufferSize?: number;
+  ubo?: BatchRawUniformGroup;
 }
 
 export class BatchManager {
@@ -270,7 +271,7 @@ export class BatchManager {
     this.batchForMesh = new WeakMap();
 
     this.atlas = new WebGLAtlasTexture(renderer);
-    this.ubo = new BatchRawUniformGroup(this.maxInstances);
+    this.ubo = options.ubo || new BatchRawUniformGroup(this.maxInstances);
 
     this.instanceCount = 0;
   }
