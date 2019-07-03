@@ -32,6 +32,13 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
   uvTransforms: Float32Array;
   mapSettings: Float32Array;
 
+  hubs_interactorOnePos: Float32Array;
+  hubs_interactorTwoPos: Float32Array;
+  hubs_sweepParams: Float32Array;
+
+  hubs_isFrozen: Uint32Array;
+  hubs_time: Float32Array;
+
   private nextIdx: InstanceID;
   private freed: InstanceID[];
   private meshes: BatchableMesh[];
@@ -39,7 +46,15 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
   data: ArrayBuffer;
 
   constructor(maxInstances: number, name = "InstanceData") {
-    super(new ArrayBuffer(maxInstances * INSTANCE_DATA_BYTE_LENGTH));
+    const hubsDataSize =
+      maxInstances * 4 * 4 + // padded sweepParams
+      4 *
+        (4 + // padded interactorOnePos
+        4 + // padded interactorTwoPos
+        1 + // isFrozen
+        1 + // time
+          2); // padding
+    super(new ArrayBuffer(maxInstances * INSTANCE_DATA_BYTE_LENGTH + hubsDataSize));
     this.setName(name);
 
     let offset = 0;
@@ -55,6 +70,22 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
 
     // [textureIndex, wrapS, wrapT, FREE] vec4 aligned so 4th element is free for use
     this.mapSettings = new Float32Array(this.data, offset, 4 * maxInstances);
+    offset += this.mapSettings.byteLength;
+
+    this.hubs_sweepParams = new Float32Array(this.data, offset, 4 * maxInstances);
+    offset += this.hubs_sweepParams.byteLength;
+
+    this.hubs_interactorOnePos = new Float32Array(this.data, offset, 4);
+    offset += this.hubs_interactorOnePos.byteLength;
+
+    this.hubs_interactorTwoPos = new Float32Array(this.data, offset, 4);
+    offset += this.hubs_interactorTwoPos.byteLength;
+
+    this.hubs_isFrozen = new Uint32Array(this.data, offset, 1);
+    offset += this.hubs_isFrozen.byteLength;
+
+    this.hubs_time = new Float32Array(this.data, offset, 1);
+    offset += this.hubs_time.byteLength;
 
     this.nextIdx = 0;
     this.freed = [];
@@ -154,13 +185,25 @@ layout(std140) uniform InstanceData {
   vec4 colors[MAX_INSTANCES];
   vec4 uvTransforms[MAX_INSTANCES];
   vec4 mapSettings[MAX_INSTANCES];
+
+  vec4 hubs_SweepParams[MAX_INSTANCES];
+
+  vec4 hubs_InteractorOnePos;
+  vec4 hubs_InteractorTwoPos;
+
+  bool hubs_IsFrozen;
+  float hubs_Time;
+
 } instanceData;
+
+out vec3 hubs_WorldPosition;
 
 in vec3 position;
 in vec2 uv;
 
 #ifdef PSEUDO_INSTANCING
 in float instance;
+flat out uint vInstance;
 #endif
 
 #ifdef VERTEX_COLORS
@@ -189,9 +232,11 @@ void main() {
   vUv = uv;
   vUVTransform = instanceData.uvTransforms[instanceIndex];
   vMapSettings = instanceData.mapSettings[instanceIndex];
-  
 
   gl_Position = projectionMatrix * viewMatrix * instanceData.transforms[instanceIndex] * vec4(position, 1.0);
+
+  hubs_WorldPosition = (instanceData.transforms[instanceIndex] * vec4(position, 1.0)).xyz;
+  vInstance = instanceIndex;
 }
 `;
 
@@ -199,6 +244,28 @@ export const fragmentShader = glsl`#version 300 es
 precision highp float;
 precision highp int;
 precision highp sampler2DArray;
+
+
+layout(std140) uniform InstanceData {
+  mat4 transforms[MAX_INSTANCES];
+  vec4 colors[MAX_INSTANCES];
+  vec4 uvTransforms[MAX_INSTANCES];
+  vec4 mapSettings[MAX_INSTANCES];
+
+  vec4 hubs_SweepParams[MAX_INSTANCES];
+
+  vec4 hubs_InteractorOnePos;
+  vec4 hubs_InteractorTwoPos;
+
+  bool hubs_IsFrozen;
+  float hubs_Time;
+
+} instanceData;
+in vec3 hubs_WorldPosition;
+#ifdef PSEUDO_INSTANCING
+flat in uint vInstance;
+#endif
+
 
 uniform sampler2DArray map;
 
@@ -237,5 +304,49 @@ void main() {
 
   int mapIdx = int(vMapSettings.x);
   outColor = texture(map, vec3(uv, mapIdx)) * vColor;
+
+  bool hubs_HighlightInteractorOne = instanceData.hubs_SweepParams[vInstance].z > 0.0;
+  bool hubs_HighlightInteractorTwo = instanceData.hubs_SweepParams[vInstance].w > 0.0;
+  bool hubs_IsFrozen = instanceData.hubs_IsFrozen;
+
+  if (hubs_HighlightInteractorOne || hubs_HighlightInteractorTwo || hubs_IsFrozen) {
+
+      bool hubs_EnableSweepingEffect = true;
+      vec2 hubs_SweepParams = instanceData.hubs_SweepParams[vInstance].xy;
+      float hubs_Time = instanceData.hubs_Time;
+
+      float ratio = 0.0;
+
+      if (hubs_EnableSweepingEffect) {
+          float size = hubs_SweepParams.t - hubs_SweepParams.s;
+          float line = mod(hubs_Time / 500.0 * size, size * 3.0) + hubs_SweepParams.s - size / 3.0;
+
+          if (hubs_WorldPosition.y < line) {
+              // Highlight with a sweeping gradient.
+              ratio = max(0.0, 1.0 - (line - hubs_WorldPosition.y) / (size * 1.5));
+          }
+      }
+
+      // Highlight with a gradient falling off with distance.
+      // float pulse = 9.0 + 3.0 * (sin(hubs_Time / 1000.0) + 1.0);
+
+      // if (hubs_HighlightInteractorOne) {
+      //     float dist1 = distance(hubs_WorldPosition, hubs_InteractorOnePos);
+      //     ratio += -min(1.0, pow(dist1 * pulse, 3.0)) + 1.0;
+      // }
+
+      // if (hubs_HighlightInteractorTwo) {
+      //     float dist2 = distance(hubs_WorldPosition, hubs_InteractorTwoPos);
+      //     ratio += -min(1.0, pow(dist2 * pulse, 3.0)) + 1.0;
+      // }
+
+      ratio = min(1.0, ratio);
+
+      // Gamma corrected highlight color
+      vec3 highlightColor = vec3(0.184, 0.499, 0.933);
+
+      outColor = vec4((outColor.rgb * (1.0 - ratio)) + (highlightColor * ratio), outColor.a);
+  }
+
 }
 `;

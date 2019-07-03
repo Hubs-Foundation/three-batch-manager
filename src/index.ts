@@ -24,6 +24,8 @@ export interface BatchableMesh extends Mesh {
   material: MeshStandardMaterial | MeshBasicMaterial;
 }
 
+export { BatchRawUniformGroup };
+
 interface UnlitBatchOptions {
   bufferSize: number;
   enableVertexColors: boolean;
@@ -229,11 +231,6 @@ export class UnlitBatch extends Mesh {
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
       const instanceId = this.instanceIds[i];
-
-      // Hubs Fork
-      if ((mesh as any).updateMatrices) {
-        (mesh as any).updateMatrices();
-      }
 
       this.ubo.update(instanceId, mesh);
     }
