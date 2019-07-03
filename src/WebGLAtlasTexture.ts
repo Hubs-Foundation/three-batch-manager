@@ -461,6 +461,7 @@ export default class WebGLAtlasTexture extends Texture {
     );
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteTexture(resizeTexture);
 
     this.genMipmaps(layerIdx, atlasIdx);
   }
