@@ -31,6 +31,7 @@ interface UnlitBatchOptions {
   enableVertexColors: boolean;
   pseudoInstancing: boolean;
   maxInstances: number;
+  shaders?: ShaderOverride;
 }
 
 export class UnlitBatch extends Mesh {
@@ -72,8 +73,8 @@ export class UnlitBatch extends Mesh {
     geometry.setDrawRange(0, 0);
 
     const material = new RawShaderMaterial({
-      vertexShader,
-      fragmentShader,
+      vertexShader: (opts.shaders && opts.shaders.vertexShader) || vertexShader,
+      fragmentShader: (opts.shaders && opts.shaders.fragmentShader) || fragmentShader,
       defines: {
         MAX_INSTANCES: opts.maxInstances,
         PSEUDO_INSTANCING: opts.pseudoInstancing,
@@ -237,10 +238,20 @@ export class UnlitBatch extends Mesh {
   }
 }
 
+interface ShaderOverride {
+  vertexShader: string;
+  fragmentShader: string;
+}
+
+interface ShaderOverrides {
+  unlit?: ShaderOverride;
+}
+
 interface BatchManagerOptions {
   maxInstances?: number;
   maxBufferSize?: number;
   ubo?: BatchRawUniformGroup;
+  shaders?: ShaderOverrides;
 }
 
 export class BatchManager {
@@ -257,6 +268,7 @@ export class BatchManager {
 
   atlas: WebGLAtlasTexture;
   ubo: BatchRawUniformGroup;
+  shaders: ShaderOverrides;
 
   constructor(scene: Scene, renderer: WebGLRenderer, options: BatchManagerOptions = {}) {
     this.scene = scene;
@@ -269,6 +281,7 @@ export class BatchManager {
 
     this.atlas = new WebGLAtlasTexture(renderer);
     this.ubo = options.ubo || new BatchRawUniformGroup(this.maxInstances);
+    this.shaders = options.shaders || {};
 
     this.instanceCount = 0;
   }
@@ -339,7 +352,8 @@ export class BatchManager {
     if (nextBatch === null) {
       nextBatch = new UnlitBatch(this.ubo, this.atlas, {
         maxInstances: this.maxInstances,
-        bufferSize: this.maxBufferSize
+        bufferSize: this.maxBufferSize,
+        shaders: this.shaders.unlit
       });
       nextBatch.material.side = batchableMesh.material.side;
       this.scene.add(nextBatch);
