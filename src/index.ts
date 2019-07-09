@@ -2,24 +2,16 @@ import {
   Mesh,
   RawShaderMaterial,
   BufferGeometry,
-  Matrix4,
-  Color,
   Uint32BufferAttribute,
   Float32BufferAttribute,
   MeshStandardMaterial,
   Scene,
   WebGLRenderer,
   BufferAttribute,
-  MeshBasicMaterial,
-  ClampToEdgeWrapping
+  MeshBasicMaterial
 } from "three";
-import WebGLAtlasTexture, { TextureID } from "./WebGLAtlasTexture";
+import WebGLAtlasTexture from "./WebGLAtlasTexture";
 import { vertexShader, fragmentShader, BatchRawUniformGroup, InstanceID } from "./UnlitBatchShader";
-
-const HIDE_MATRIX = new Matrix4().makeScale(0, 0, 0);
-const DEFAULT_COLOR = new Color(1, 1, 1);
-
-const tempVec4Array = [0, 0, 0, 0];
 
 interface BatchableBufferGeometry extends BufferGeometry {
   attributes: {
@@ -27,16 +19,19 @@ interface BatchableBufferGeometry extends BufferGeometry {
   };
 }
 
-interface BatchableMesh extends Mesh {
+export interface BatchableMesh extends Mesh {
   geometry: BatchableBufferGeometry;
   material: MeshStandardMaterial | MeshBasicMaterial;
 }
+
+export { BatchRawUniformGroup };
 
 interface UnlitBatchOptions {
   bufferSize: number;
   enableVertexColors: boolean;
   pseudoInstancing: boolean;
   maxInstances: number;
+  shaders?: ShaderOverride;
 }
 
 export class UnlitBatch extends Mesh {
@@ -45,9 +40,7 @@ export class UnlitBatch extends Mesh {
   maxInstances: number;
   vertCount: number;
 
-  textureIds: TextureID[];
   meshes: BatchableMesh[];
-  instanceIds: InstanceID[];
 
   atlas: WebGLAtlasTexture;
   ubo: BatchRawUniformGroup;
@@ -79,8 +72,8 @@ export class UnlitBatch extends Mesh {
     geometry.setDrawRange(0, 0);
 
     const material = new RawShaderMaterial({
-      vertexShader,
-      fragmentShader,
+      vertexShader: (opts.shaders && opts.shaders.vertexShader) || vertexShader,
+      fragmentShader: (opts.shaders && opts.shaders.fragmentShader) || fragmentShader,
       defines: {
         MAX_INSTANCES: opts.maxInstances,
         PSEUDO_INSTANCING: opts.pseudoInstancing,
@@ -101,10 +94,7 @@ export class UnlitBatch extends Mesh {
 
     this.vertCount = 0;
 
-    // these are all parallel, and always added to at the end. They match the order in the geometry but not the UBO
-    this.textureIds = [];
     this.meshes = [];
-    this.instanceIds = [];
 
     this.frustumCulled = false;
 
@@ -114,38 +104,13 @@ export class UnlitBatch extends Mesh {
 
   addMesh(mesh: BatchableMesh): boolean {
     const geometry = mesh.geometry;
-    const material = mesh.material;
 
     mesh.updateMatrixWorld(true);
 
-    // const meshIndiciesAttribute = geometry.index;
-    const instanceId = this.ubo.nextId();
-
-    if (material.map && material.map.image) {
-      const textureId = this.material.uniforms.map.value.addTexture(material.map, tempVec4Array);
-
-      if (textureId === undefined) {
-        console.warn("Mesh could not be batched. Texture atlas full.");
-        return false;
-      }
-
-      this.textureIds.push(textureId);
-
-      this.ubo.setInstanceUVTransform(instanceId, tempVec4Array);
-      this.ubo.setInstanceMapSettings(instanceId, textureId[0], material.map.wrapS, material.map.wrapT);
-    } else {
-      this.ubo.setInstanceUVTransform(instanceId, this.atlas.nullTextureTransform);
-      this.ubo.setInstanceMapSettings(
-        instanceId,
-        this.atlas.nullTextureIndex[0],
-        ClampToEdgeWrapping,
-        ClampToEdgeWrapping
-      );
-      this.textureIds.push(null);
+    const instanceId = this.ubo.addMesh(mesh, this.atlas);
+    if (instanceId === false) {
+      return false;
     }
-
-    this.ubo.setInstanceTransform(instanceId, mesh.matrixWorld);
-    this.ubo.setInstanceColor(instanceId, material.color || DEFAULT_COLOR, material.opacity || 1);
     this.material.needsUpdate = true;
 
     // TODO this is how we are excluding the original mesh from renderlist for now, maybe do something better?
@@ -214,16 +179,14 @@ export class UnlitBatch extends Mesh {
     this.geometry.index.needsUpdate = true;
 
     this.meshes.push(mesh);
-    this.instanceIds.push(instanceId);
 
     return true;
   }
 
   removeMesh(mesh: BatchableMesh) {
     const indexInBatch = this.meshes.indexOf(mesh);
-    const instanceId = this.instanceIds[indexInBatch];
 
-    console.log(`Removing mesh from batch instance: ${instanceId} indexInBatch: ${indexInBatch}`);
+    console.log(`Removing mesh from batch indexInBatch: ${indexInBatch}`);
 
     let preVertCount = 0;
     let preIndexCount = 0;
@@ -253,39 +216,27 @@ export class UnlitBatch extends Mesh {
     }
     this.geometry.index.needsUpdate = true;
 
-    if (mesh.material.map) {
-      this.material.uniforms.map.value.removeTexture(mesh.material.map);
-    }
-
-    this.ubo.setInstanceTransform(instanceId, HIDE_MATRIX);
-    this.ubo.freeId(instanceId);
+    this.ubo.removeMesh(mesh, this.atlas);
     this.material.needsUpdate = true;
 
     this.meshes.splice(indexInBatch, 1);
-    this.textureIds.splice(indexInBatch, 1);
-    this.instanceIds.splice(indexInBatch, 1);
   }
+}
 
-  update() {
-    for (let i = 0; i < this.meshes.length; i++) {
-      const mesh = this.meshes[i];
-      const instanceId = this.instanceIds[i];
+interface ShaderOverride {
+  vertexShader: string;
+  fragmentShader: string;
+}
 
-      // Hubs Fork
-      if ((mesh as any).updateMatrices) {
-        (mesh as any).updateMatrices();
-      }
-
-      // TODO need to account for nested visibility deeper than 1 level
-      this.ubo.setInstanceTransform(instanceId, mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
-      this.ubo.setInstanceColor(instanceId, mesh.material.color || DEFAULT_COLOR, mesh.material.opacity || 1);
-    }
-  }
+interface ShaderOverrides {
+  unlit?: ShaderOverride;
 }
 
 interface BatchManagerOptions {
   maxInstances?: number;
   maxBufferSize?: number;
+  ubo?: BatchRawUniformGroup;
+  shaders?: ShaderOverrides;
 }
 
 export class BatchManager {
@@ -302,6 +253,7 @@ export class BatchManager {
 
   atlas: WebGLAtlasTexture;
   ubo: BatchRawUniformGroup;
+  shaders: ShaderOverrides;
 
   constructor(scene: Scene, renderer: WebGLRenderer, options: BatchManagerOptions = {}) {
     this.scene = scene;
@@ -313,7 +265,8 @@ export class BatchManager {
     this.batchForMesh = new WeakMap();
 
     this.atlas = new WebGLAtlasTexture(renderer);
-    this.ubo = new BatchRawUniformGroup(this.maxInstances);
+    this.ubo = options.ubo || new BatchRawUniformGroup(this.maxInstances);
+    this.shaders = options.shaders || {};
 
     this.instanceCount = 0;
   }
@@ -384,7 +337,8 @@ export class BatchManager {
     if (nextBatch === null) {
       nextBatch = new UnlitBatch(this.ubo, this.atlas, {
         maxInstances: this.maxInstances,
-        bufferSize: this.maxBufferSize
+        bufferSize: this.maxBufferSize,
+        shaders: this.shaders.unlit
       });
       nextBatch.material.side = batchableMesh.material.side;
       this.scene.add(nextBatch);
@@ -416,11 +370,7 @@ export class BatchManager {
     return true;
   }
 
-  update() {
-    const batches = this.batches;
-
-    for (let i = 0; i < batches.length; i++) {
-      batches[i].update();
-    }
+  update(time: number) {
+    this.ubo.update(time);
   }
 }
