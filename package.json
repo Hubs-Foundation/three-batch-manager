@@ -26,6 +26,7 @@
     "watch:es2015": "tsc -w -p ./src/tsconfig.json",
     "watch:commonjs": "tsc -w -p ./src/cjs-tsconfig.json",
     "lint": "tslint -c tslint.json -p ./lint-tsconfig.json",
+    "preversion": "npm run lint",
     "publish": "np --no-yarn"
   },
   "husky": {
