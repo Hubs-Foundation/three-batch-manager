@@ -25,6 +25,12 @@
     "member-access": false,
     "max-classes-per-file": false,
     "prefer-object-spread": false,
-    "no-submodule-imports": false
+    "no-submodule-imports": false,
+    "variable-name": {
+      "options": [
+        "allow-leading-underscore",
+        "allow-pascal-case"
+      ]
+    }
   }
 }

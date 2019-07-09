@@ -122,8 +122,6 @@ export class UnlitBatch extends Mesh {
     const batchIndicesArray = this.geometry.index.array as Uint32Array;
     const batchIndicesOffset = this.geometry.drawRange.count;
 
-    console.log("add mesh", instanceId, this.meshes.length);
-
     for (let i = 0; i < meshIndicesCount; i++) {
       batchIndicesArray[batchIndicesOffset + i] = meshIndices[i] + this.vertCount;
     }
@@ -185,8 +183,6 @@ export class UnlitBatch extends Mesh {
 
   removeMesh(mesh: BatchableMesh) {
     const indexInBatch = this.meshes.indexOf(mesh);
-
-    console.log(`Removing mesh from batch indexInBatch: ${indexInBatch}`);
 
     let preVertCount = 0;
     let preIndexCount = 0;
@@ -343,7 +339,6 @@ export class BatchManager {
       nextBatch.material.side = batchableMesh.material.side;
       this.scene.add(nextBatch);
       this.batches.push(nextBatch);
-      console.log("Allocating new batch", this.batches.length);
     }
 
     if (!nextBatch.addMesh(batchableMesh)) {

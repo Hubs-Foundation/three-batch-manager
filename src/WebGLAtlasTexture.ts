@@ -2,7 +2,7 @@ import { Texture, Math as ThreeMath, WebGLRenderer } from "three";
 
 export type TileID = number;
 export type LayerID = number;
-// export type TextureID = [LayerID, TileID];
+
 export interface TextureID extends Array<number> {
   0: LayerID;
   1: TileID;
@@ -140,7 +140,6 @@ export default class WebGLAtlasTexture extends Texture {
     const gl = this.renderer.context as WebGL2RenderingContext;
     const textureProperties = properties.get(this);
 
-    // console.log("Allocating texture array, depth", arrayDepth);
     this.glTexture = gl.createTexture();
     this.arrayDepth = arrayDepth;
     this.mipFramebuffers = [];
@@ -182,8 +181,6 @@ export default class WebGLAtlasTexture extends Texture {
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    // this.generateDebugMips();
   }
 
   generateDebugMips() {
@@ -260,7 +257,6 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   growTextureArray(newDepth: number) {
-    console.log("Growing array", newDepth);
     const gl = this.renderer.context as WebGL2RenderingContext;
 
     const prevGlTexture = this.glTexture;
@@ -351,8 +347,6 @@ export default class WebGLAtlasTexture extends Texture {
       uvTransform: uvTransform.slice()
     });
 
-    // console.log("layerIdx: ", layerIdx, "atlasIdx: ", atlasIdx, "uvtransform: ", uvTransform, "layer: ", layer);
-
     return id;
   }
 
@@ -410,7 +404,6 @@ export default class WebGLAtlasTexture extends Texture {
     const xOffset = (atlasIdx % layer.colls) * layer.size;
     const yOffset = Math.floor(atlasIdx / layer.rows) * layer.size;
 
-    // console.log("Uploading image", layerIdx, atlasIdx, img.width, img.height);
     gl.texSubImage3D(
       gl.TEXTURE_2D_ARRAY, // target
       0, // level
@@ -426,7 +419,6 @@ export default class WebGLAtlasTexture extends Texture {
     );
 
     this.genMipmaps(layerIdx, atlasIdx);
-    // gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
   }
 
   uploadAndResizeImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage, width: number, height: number) {
@@ -529,13 +521,10 @@ export default class WebGLAtlasTexture extends Texture {
 
     layer.freeId(atlasIdx);
     if (layer.isEmpty()) {
-      // console.log("Freeing layer", layer);
       this.freeLayers.push(layerIdx);
     }
 
     this.textures.delete(texture);
-
-    // console.log("Remove", layerIdx, atlasIdx, layer, this.freeLayers);
   }
 }
 

@@ -113,7 +113,10 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
   update(_time: number) {
     for (let instanceId = 0; instanceId < this.meshes.length; instanceId++) {
       const mesh = this.meshes[instanceId];
-      if (!mesh) continue;
+
+      if (!mesh) {
+        continue;
+      }
 
       // TODO need to account for nested visibility deeper than 1 level
       this.setInstanceTransform(instanceId, mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
@@ -127,7 +130,6 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
 
   freeId(idx: number) {
     this.freed.push(idx);
-    console.log("freed instance", idx, this.freed);
   }
 
   setInstanceColor(instanceId: InstanceID, color: Color, opacity: number) {
