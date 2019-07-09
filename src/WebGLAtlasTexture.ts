@@ -11,6 +11,8 @@ export type UVTransform = [number, number, number, number];
 
 type UploadableImage = ImageBitmap | HTMLImageElement | HTMLCanvasElement;
 
+const REMOVE_CLEAR_COLOR = [0, 0, 0, 0];
+
 class Layer {
   freed: TileID[];
   size: number;
@@ -355,9 +357,23 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   addColorRect(size: number, color: number[], uvTransform: UVTransform): TextureID | undefined {
+    const id = this.nextId(size);
+    const [layerIdx, atlasIdx] = id;
+    const layer = this.layers[layerIdx];
+
+    this.clearTile(id, color);
+
+    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls;
+    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
+    uvTransform[2] = (1 / layer.colls) * (size / layer.size);
+    uvTransform[3] = (1 / layer.rows) * (size / layer.size);
+
+    return id;
+  }
+
+  clearTile(id: TextureID, color: number[]) {
     const gl = this.renderer.context as WebGL2RenderingContext;
 
-    const id = this.nextId(size);
     const [layerIdx, atlasIdx] = id;
     const layer = this.layers[layerIdx];
 
@@ -376,13 +392,6 @@ export default class WebGLAtlasTexture extends Texture {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     this.genMipmaps(layerIdx, atlasIdx);
-
-    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls;
-    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
-    uvTransform[2] = (1 / layer.colls) * (size / layer.size);
-    uvTransform[3] = (1 / layer.rows) * (size / layer.size);
-
-    return id;
   }
 
   uploadImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage) {
@@ -513,26 +522,10 @@ export default class WebGLAtlasTexture extends Texture {
       return;
     }
 
-    const gl = this.renderer.context as WebGL2RenderingContext;
-
     const [layerIdx, atlasIdx] = textureInfo.id;
     const layer = this.layers[layerIdx];
 
-    const mips = this.mipFramebuffers[layerIdx];
-    gl.bindFramebuffer(gl.FRAMEBUFFER, mips[0]);
-
-    const xOffset = (atlasIdx % layer.colls) * layer.size;
-    const yOffset = Math.floor(atlasIdx / layer.rows) * layer.size;
-
-    gl.enable(gl.SCISSOR_TEST);
-    gl.scissor(xOffset, yOffset, layer.size, layer.size);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.disable(gl.SCISSOR_TEST);
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    this.genMipmaps(layerIdx, atlasIdx);
+    this.clearTile(textureInfo.id, REMOVE_CLEAR_COLOR);
 
     layer.freeId(atlasIdx);
     if (layer.isEmpty()) {
