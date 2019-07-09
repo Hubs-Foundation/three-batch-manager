@@ -26,8 +26,7 @@
     "watch:es2015": "tsc -w -p ./src/tsconfig.json",
     "watch:commonjs": "tsc -w -p ./src/cjs-tsconfig.json",
     "lint": "tslint -c tslint.json -p ./lint-tsconfig.json",
-    "preversion": "npm run lint",
-    "publish": "np --no-yarn"
+    "preversion": "npm run lint"
   },
   "husky": {
     "hooks": {
@@ -48,7 +47,6 @@
     "html-webpack-plugin": "^3.2.0",
     "husky": "^3.0.0",
     "lint-staged": "^9.1.0",
-    "np": "^5.0.3",
     "npm-run-all": "^4.1.5",
     "prettier": "^1.18.2",
     "three": "github:mozillareality/three.js#hubs/master",
