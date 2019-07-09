@@ -260,7 +260,6 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   growTextureArray(newDepth: number) {
-    console.log("Growing array", newDepth);
     const gl = this.renderer.context as WebGL2RenderingContext;
 
     const prevGlTexture = this.glTexture;
