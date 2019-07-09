@@ -249,7 +249,7 @@ function render() {
     nonBatchedMatrials[i].color.copy(nonBatchedColor);
   }
 
-  batchManager.update();
+  batchManager.update(time);
 
   renderer.render(scene, camera);
 }
