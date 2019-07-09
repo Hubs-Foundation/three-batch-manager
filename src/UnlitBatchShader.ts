@@ -110,10 +110,15 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
     this.meshes[instanceId] = null;
   }
 
-  update(instanceId: number, mesh: BatchableMesh) {
-    // TODO need to account for nested visibility deeper than 1 level
-    this.setInstanceTransform(instanceId, mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
-    this.setInstanceColor(instanceId, mesh.material.color || DEFAULT_COLOR, mesh.material.opacity || 1);
+  update(_time: number) {
+    for (let instanceId = 0; instanceId < this.meshes.length; instanceId++) {
+      const mesh = this.meshes[instanceId];
+      if (!mesh) continue;
+
+      // TODO need to account for nested visibility deeper than 1 level
+      this.setInstanceTransform(instanceId, mesh.visible && mesh.parent.visible ? mesh.matrixWorld : HIDE_MATRIX);
+      this.setInstanceColor(instanceId, mesh.material.color || DEFAULT_COLOR, mesh.material.opacity || 1);
+    }
   }
 
   nextId() {

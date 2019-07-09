@@ -41,7 +41,6 @@ export class UnlitBatch extends Mesh {
   vertCount: number;
 
   meshes: BatchableMesh[];
-  instanceIds: InstanceID[];
 
   atlas: WebGLAtlasTexture;
   ubo: BatchRawUniformGroup;
@@ -95,9 +94,7 @@ export class UnlitBatch extends Mesh {
 
     this.vertCount = 0;
 
-    // these are all parallel, and always added to at the end. They match the order in the geometry but not the UBO
     this.meshes = [];
-    this.instanceIds = [];
 
     this.frustumCulled = false;
 
@@ -182,16 +179,14 @@ export class UnlitBatch extends Mesh {
     this.geometry.index.needsUpdate = true;
 
     this.meshes.push(mesh);
-    this.instanceIds.push(instanceId);
 
     return true;
   }
 
   removeMesh(mesh: BatchableMesh) {
     const indexInBatch = this.meshes.indexOf(mesh);
-    const instanceId = this.instanceIds[indexInBatch];
 
-    console.log(`Removing mesh from batch instance: ${instanceId} indexInBatch: ${indexInBatch}`);
+    console.log(`Removing mesh from batch indexInBatch: ${indexInBatch}`);
 
     let preVertCount = 0;
     let preIndexCount = 0;
@@ -225,16 +220,6 @@ export class UnlitBatch extends Mesh {
     this.material.needsUpdate = true;
 
     this.meshes.splice(indexInBatch, 1);
-    this.instanceIds.splice(indexInBatch, 1);
-  }
-
-  update() {
-    for (let i = 0; i < this.meshes.length; i++) {
-      const mesh = this.meshes[i];
-      const instanceId = this.instanceIds[i];
-
-      this.ubo.update(instanceId, mesh);
-    }
   }
 }
 
@@ -379,11 +364,7 @@ export class BatchManager {
     this.instanceCount--;
   }
 
-  update() {
-    const batches = this.batches;
-
-    for (let i = 0; i < batches.length; i++) {
-      batches[i].update();
-    }
+  update(time: number) {
+    this.ubo.update(time);
   }
 }
