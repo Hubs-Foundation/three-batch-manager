@@ -1,5 +1,7 @@
 # three-render-manager
 
+[![CircleCI](https://circleci.com/gh/MozillaReality/three-render-manager.svg?style=svg)](https://circleci.com/gh/MozillaReality/three-render-manager)
+
 High level batching / instancing API for ThreeJS
 
 This project is currently experimental, the API will change, and it may not always be in a working state.
