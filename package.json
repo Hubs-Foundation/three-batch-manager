@@ -1,14 +1,14 @@
 {
-  "name": "three-batch-manager",
+  "name": "@mozillareality/three-batch-manager",
   "license": "MPL-2.0",
-  "version": "0.1.2",
+  "version": "0.1.0",
   "description": "High level batching / instancing API for ThreeJS",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mozillareality/three-render-manager.git"
+    "url": "https://github.com/mozillareality/three-batch-manager.git"
   },
   "bugs": {
-    "url": "https://github.com/mozillareality/three-render-manager/issues"
+    "url": "https://github.com/mozillareality/three-batch-manager/issues"
   },
   "main": "lib/commonjs/index.js",
   "module": "lib/es2015/index.js",
