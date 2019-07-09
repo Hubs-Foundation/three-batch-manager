@@ -1,4 +1,4 @@
-import { Texture, Math as ThreeMath, WebGLRenderer, CanvasTexture } from "three";
+import { Texture, Math as ThreeMath, WebGLRenderer } from "three";
 
 export type TileID = number;
 export type LayerID = number;
@@ -10,6 +10,8 @@ export interface TextureID extends Array<number> {
 export type UVTransform = [number, number, number, number];
 
 type UploadableImage = ImageBitmap | HTMLImageElement | HTMLCanvasElement;
+
+const REMOVE_CLEAR_COLOR = [0, 0, 0, 0];
 
 class Layer {
   freed: TileID[];
@@ -58,8 +60,6 @@ export interface WebGLAtlasTextureOptions {
 
 export default class WebGLAtlasTexture extends Texture {
   renderer: WebGLRenderer;
-  canvas: HTMLCanvasElement;
-  canvasCtx: CanvasRenderingContext2D;
   layerResolution: number;
   minTileSize: number;
   freeLayers: LayerID[];
@@ -80,10 +80,6 @@ export default class WebGLAtlasTexture extends Texture {
     this.layerResolution = options.layerResolution || 4096;
     this.minTileSize = options.minTileSize || 512;
 
-    this.canvas = document.createElement("canvas");
-    this.canvas.width = this.canvas.height = this.layerResolution;
-    this.canvasCtx = this.canvas.getContext("2d");
-
     this.textures = new Map();
 
     this.freeLayers = [];
@@ -95,7 +91,7 @@ export default class WebGLAtlasTexture extends Texture {
     this.createTextureArray(3);
 
     this.nullTextureTransform = [0, 0, 0, 0];
-    this.nullTextureIndex = this.addColorRect(this.minTileSize, "white", this.nullTextureTransform);
+    this.nullTextureIndex = this.addColorRect(this.minTileSize, [1, 1, 1, 1], this.nullTextureTransform);
   }
 
   getLayerWithSpace(size: number) {
@@ -331,18 +327,11 @@ export default class WebGLAtlasTexture extends Texture {
 
     const [layerIdx, atlasIdx] = id;
 
-    let imgToUpload = img;
-
     if (width !== img.width || height !== img.height) {
-      // console.warn("resizing image from", img.width, img.height, "to", width, height);
-      this.canvas.width = width;
-      this.canvas.height = height;
-      this.canvasCtx.clearRect(0, 0, width, height);
-      this.canvasCtx.drawImage(img, 0, 0, width, height);
-      imgToUpload = this.canvas;
+      this.uploadAndResizeImage(layerIdx, atlasIdx, img, width, height);
+    } else {
+      this.uploadImage(layerIdx, atlasIdx, img);
     }
-
-    this.uploadImage(layerIdx, atlasIdx, imgToUpload);
 
     const layer = this.layers[layerIdx];
 
@@ -367,12 +356,42 @@ export default class WebGLAtlasTexture extends Texture {
     return id;
   }
 
-  addColorRect(size: number, color: string, uvTransform: UVTransform): TextureID | undefined {
-    this.canvas.width = size;
-    this.canvas.height = size;
-    this.canvasCtx.fillStyle = color;
-    this.canvasCtx.fillRect(0, 0, size, size);
-    return this.addTexture(new CanvasTexture(this.canvas), uvTransform);
+  addColorRect(size: number, color: number[], uvTransform: UVTransform): TextureID | undefined {
+    const id = this.nextId(size);
+    const [layerIdx, atlasIdx] = id;
+    const layer = this.layers[layerIdx];
+
+    this.clearTile(id, color);
+
+    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls;
+    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
+    uvTransform[2] = (1 / layer.colls) * (size / layer.size);
+    uvTransform[3] = (1 / layer.rows) * (size / layer.size);
+
+    return id;
+  }
+
+  clearTile(id: TextureID, color: number[]) {
+    const gl = this.renderer.context as WebGL2RenderingContext;
+
+    const [layerIdx, atlasIdx] = id;
+    const layer = this.layers[layerIdx];
+
+    const mips = this.mipFramebuffers[layerIdx];
+    gl.bindFramebuffer(gl.FRAMEBUFFER, mips[0]);
+
+    const xOffset = (atlasIdx % layer.colls) * layer.size;
+    const yOffset = Math.floor(atlasIdx / layer.rows) * layer.size;
+
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(xOffset, yOffset, layer.size, layer.size);
+    gl.clearColor(color[0], color[1], color[2], color[3]);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.disable(gl.SCISSOR_TEST);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    this.genMipmaps(layerIdx, atlasIdx);
   }
 
   uploadImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage) {
@@ -408,6 +427,52 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.genMipmaps(layerIdx, atlasIdx);
     // gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+  }
+
+  uploadAndResizeImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage, width: number, height: number) {
+    const state = this.renderer.state;
+    const gl = this.renderer.context as WebGL2RenderingContext;
+
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, this.unpackAlignment);
+
+    const resizeTexture = gl.createTexture();
+    state.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, resizeTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+
+    // TODO: Figure out if we can reuse this framebuffer to avoid validation costs. Probably requires reusing the resizeTexture.
+    const resizeFramebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, resizeFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, resizeTexture, 0);
+
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, resizeFramebuffer);
+
+    const mips = this.mipFramebuffers[layerIdx];
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, mips[0]);
+
+    const layer = this.layers[layerIdx];
+    const xOffset = (atlasIdx % layer.colls) * layer.size;
+    const yOffset = Math.floor(atlasIdx / layer.rows) * layer.size;
+
+    gl.blitFramebuffer(
+      0,
+      0,
+      img.width,
+      img.height,
+      xOffset,
+      yOffset,
+      xOffset + width,
+      yOffset + height,
+      gl.COLOR_BUFFER_BIT,
+      gl.LINEAR
+    );
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteTexture(resizeTexture);
+
+    this.genMipmaps(layerIdx, atlasIdx);
   }
 
   genMipmaps(layerIdx: LayerID, atlasIdx: TileID) {
@@ -458,12 +523,9 @@ export default class WebGLAtlasTexture extends Texture {
     }
 
     const [layerIdx, atlasIdx] = textureInfo.id;
-
     const layer = this.layers[layerIdx];
 
-    this.canvas.width = this.canvas.height = layer.size;
-    this.canvasCtx.clearRect(0, 0, layer.size, layer.size);
-    this.uploadImage(layerIdx, atlasIdx, this.canvas);
+    this.clearTile(textureInfo.id, REMOVE_CLEAR_COLOR);
 
     layer.freeId(atlasIdx);
     if (layer.isEmpty()) {

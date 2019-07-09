@@ -258,3 +258,4 @@ renderer.setAnimationLoop(render);
 
 (window as any).renderer = renderer;
 (window as any).scene = scene;
+(window as any).batchManager = batchManager;

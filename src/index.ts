@@ -405,9 +405,15 @@ export class BatchManager {
   removeMesh(mesh: Mesh) {
     const batchableMesh = mesh as BatchableMesh;
     const batch = this.batchForMesh.get(batchableMesh);
+
+    if (!batch) {
+      return false;
+    }
+
     batch.removeMesh(batchableMesh);
     this.batchForMesh.delete(batchableMesh);
     this.instanceCount--;
+    return true;
   }
 
   update() {
