@@ -1,4 +1,4 @@
-# three-render-manager
+# three-batch-manager
 
 [![CircleCI](https://circleci.com/gh/MozillaReality/three-render-manager.svg?style=svg)](https://circleci.com/gh/MozillaReality/three-render-manager)
 
