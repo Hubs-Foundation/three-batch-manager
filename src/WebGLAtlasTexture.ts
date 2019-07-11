@@ -299,6 +299,13 @@ export default class WebGLAtlasTexture extends Texture {
     }
 
     const img = texture.image;
+
+    // TODO We should also check for a GL texture existing before giving up
+    if (!img) {
+      console.warn("Attempted to add a texture with no image to the atlas");
+      return;
+    }
+
     let width = img.width;
     let height = img.height;
     let size;
@@ -346,6 +353,10 @@ export default class WebGLAtlasTexture extends Texture {
       count: 1,
       uvTransform: uvTransform.slice()
     });
+
+    if (texture.onUpdate) {
+      texture.onUpdate();
+    }
 
     return id;
   }

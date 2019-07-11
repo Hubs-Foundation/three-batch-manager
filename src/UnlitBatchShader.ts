@@ -74,7 +74,7 @@ export class BatchRawUniformGroup extends RawUniformsGroup {
     const instanceId = this.nextId();
     const material = mesh.material;
 
-    if (material.map && material.map.image) {
+    if (material.map) {
       const textureId = atlas.addTexture(material.map, tempUvTransform);
 
       if (textureId === undefined) {
