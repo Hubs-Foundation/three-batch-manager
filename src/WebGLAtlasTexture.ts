@@ -532,8 +532,6 @@ export default class WebGLAtlasTexture extends Texture {
     state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
     const mips = this.mipFramebuffers[layerIdx];
     while (curSize >= 1) {
-      // gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, mips[mipLevel]);
-
       const srcX = r * prevSize;
       const srcY = c * prevSize;
       const srcX2 = srcX + prevSize;
