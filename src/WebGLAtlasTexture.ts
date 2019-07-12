@@ -257,6 +257,7 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   growTextureArray(newDepth: number) {
+    const { state, properties } = this.renderer;
     const gl = this.renderer.context as WebGL2RenderingContext;
 
     const prevGlTexture = this.glTexture;
@@ -264,15 +265,34 @@ export default class WebGLAtlasTexture extends Texture {
     const prevMipFramebuffers = this.mipFramebuffers;
 
     this.createTextureArray(newDepth);
+    console.log("Growing array to", newDepth);
+
+    // Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
+    // see https://jsfiddle.net/nu1xdgs3/13a
+    const blitCopyHackTexture = gl.createTexture();
+    const blitCopyHackFB = gl.createFramebuffer();
+    state.bindTexture(gl.TEXTURE_2D, blitCopyHackTexture);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, blitCopyHackFB);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, blitCopyHackTexture, 0);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, this.layerResolution, this.layerResolution);
+
+    state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
     const maxMipLevels = Math.log2(this.layerResolution) + 1;
     for (let z = 0; z < prevArrayDepth; z++) {
       for (let mipLevel = 0; mipLevel < maxMipLevels; mipLevel++) {
         const res = this.layerResolution / Math.pow(2, mipLevel);
+
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, prevMipFramebuffers[z][mipLevel]);
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.mipFramebuffers[z][mipLevel]);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, blitCopyHackFB);
         gl.blitFramebuffer(0, 0, res, res, 0, 0, res, res, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blitCopyHackFB);
+        gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, mipLevel, 0, 0, z, 0, 0, res, res);
       }
     }
+
+    gl.deleteTexture(blitCopyHackTexture);
+    gl.deleteFramebuffer(blitCopyHackFB);
 
     for (let z = 0; z < prevMipFramebuffers.length; z++) {
       const mips = prevMipFramebuffers[z];
@@ -442,7 +462,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     const resizeTexture = gl.createTexture();
     state.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, resizeTexture);
+    state.bindTexture(gl.TEXTURE_2D, resizeTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
 
     // TODO: Figure out if we can reuse this framebuffer to avoid validation costs. Probably requires reusing the resizeTexture.
@@ -450,30 +470,33 @@ export default class WebGLAtlasTexture extends Texture {
     gl.bindFramebuffer(gl.FRAMEBUFFER, resizeFramebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, resizeTexture, 0);
 
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, resizeFramebuffer);
-
-    const mips = this.mipFramebuffers[layerIdx];
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, mips[0]);
+    console.log("Uploading image with resize", width, height, img);
+    // Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
+    // see https://jsfiddle.net/nu1xdgs3/13a
+    const blitCopyHackTexture = gl.createTexture();
+    const blitCopyHackFB = gl.createFramebuffer();
+    state.bindTexture(gl.TEXTURE_2D, blitCopyHackTexture);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, blitCopyHackFB);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, blitCopyHackTexture, 0);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
 
     const layer = this.layers[layerIdx];
     const xOffset = (atlasIdx % layer.colls) * layer.size;
     const yOffset = Math.floor(atlasIdx / layer.rows) * layer.size;
 
-    gl.blitFramebuffer(
-      0,
-      0,
-      img.width,
-      img.height,
-      xOffset,
-      yOffset,
-      xOffset + width,
-      yOffset + height,
-      gl.COLOR_BUFFER_BIT,
-      gl.LINEAR
-    );
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, resizeFramebuffer);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, blitCopyHackFB);
+    gl.blitFramebuffer(0, 0, img.width, img.height, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blitCopyHackFB);
+    state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
+    gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, 0, xOffset, yOffset, layerIdx, 0, 0, width, height);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
     gl.deleteTexture(resizeTexture);
+    gl.deleteTexture(blitCopyHackTexture);
+    gl.deleteFramebuffer(blitCopyHackFB);
 
     this.genMipmaps(layerIdx, atlasIdx);
   }
