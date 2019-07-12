@@ -227,11 +227,7 @@ export default class WebGLAtlasTexture extends Texture {
     debug.style.position = "absolute";
     debug.style.top = debug.style.bottom = debug.style.left = debug.style.right = "0";
     debug.style.overflow = "scroll";
-    debug.style.backgroundImage =
-      "linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)";
-    debug.style.backgroundSize = "20px 20px";
-    debug.style.backgroundPosition = "0 0, 0 10px, 10px -10px, -10px 0px";
-    debug.style.backgroundColor = "white";
+    debug.style.background = "black";
 
     const mips = this.mipFramebuffers[layer];
     for (let mipLevel = 0; mipLevel < Math.log2(this.layerResolution) + 1; mipLevel++) {
@@ -240,6 +236,12 @@ export default class WebGLAtlasTexture extends Texture {
       const c = document.createElement("canvas") as HTMLCanvasElement;
       c.width = c.height = this.layerResolution / Math.pow(2, mipLevel);
       c.style.display = "block";
+      c.style.backgroundImage =
+        "linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)";
+      c.style.backgroundSize = "20px 20px";
+      c.style.backgroundPosition = "0 0, 0 10px, 10px -10px, -10px 0px";
+      c.style.backgroundColor = "white";
+
       const ctx = c.getContext("2d");
       const imgData = ctx.createImageData(c.width, c.height);
 
@@ -254,6 +256,7 @@ export default class WebGLAtlasTexture extends Texture {
     document.body.appendChild(debug);
 
     gl.deleteFramebuffer(fb);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
   growTextureArray(newDepth: number) {
