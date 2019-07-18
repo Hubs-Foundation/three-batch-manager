@@ -379,8 +379,6 @@ export default class WebGLAtlasTexture extends Texture {
     uvTransform[2] = (1 / layer.colls) * ((width - 1) / layer.size);
     uvTransform[3] = (1 / layer.rows) * ((height - 1) / layer.size);
 
-    console.log(uvTransform[0], uvTransform[1], uvTransform[2], uvTransform[3]);
-
     if (texture.flipY) {
       uvTransform[1] = uvTransform[1] + uvTransform[3];
       uvTransform[3] = -uvTransform[3];
@@ -489,7 +487,6 @@ export default class WebGLAtlasTexture extends Texture {
     gl.bindFramebuffer(gl.FRAMEBUFFER, resizeFramebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, resizeTexture, 0);
 
-    console.log("Uploading image with resize", width, height, img);
     // Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
     // see https://jsfiddle.net/nu1xdgs3/13a
     const blitCopyHackTexture = gl.createTexture();
