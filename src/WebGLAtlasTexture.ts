@@ -240,8 +240,8 @@ export default class WebGLAtlasTexture extends Texture {
       c.style.display = "block";
       c.style.backgroundImage =
         "linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)";
-      c.style.backgroundSize = "20px 20px";
-      c.style.backgroundPosition = "0 0, 0 10px, 10px -10px, -10px 0px";
+      c.style.backgroundSize = "64px 64px";
+      c.style.backgroundPosition = "0 0, 0 32px, 32px -32px, -32px 0px";
       c.style.backgroundColor = "white";
 
       const ctx = c.getContext("2d");
