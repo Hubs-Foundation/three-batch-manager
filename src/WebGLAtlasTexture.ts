@@ -71,6 +71,7 @@ export default class WebGLAtlasTexture extends Texture {
   mipFramebuffers: WebGLFramebuffer[][];
   nullTextureTransform: UVTransform;
   textures: Map<Texture, { count: number; id: TextureID; uvTransform: number[] }>;
+  mipLevels: number;
 
   constructor(renderer: WebGLRenderer, options: WebGLAtlasTextureOptions = {}) {
     super();
@@ -79,6 +80,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.layerResolution = options.layerResolution || 4096;
     this.minTileSize = options.minTileSize || 512;
+    this.mipLevels = Math.log2(this.minTileSize) + 1;
 
     this.textures = new Map();
 
@@ -159,10 +161,10 @@ export default class WebGLAtlasTexture extends Texture {
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
 
-    textureProperties.__maxMipLevel = Math.log2(this.layerResolution) + 1;
+    textureProperties.__maxMipLevel = this.mipLevels;
     gl.texStorage3D(
       gl.TEXTURE_2D_ARRAY,
-      textureProperties.__maxMipLevel,
+      this.mipLevels,
       gl.RGBA8,
       this.layerResolution,
       this.layerResolution,
@@ -171,7 +173,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     for (let z = 0; z < arrayDepth; z++) {
       const mips = [];
-      for (let mipLevel = 0; mipLevel < textureProperties.__maxMipLevel; mipLevel++) {
+      for (let mipLevel = 0; mipLevel < this.mipLevels; mipLevel++) {
         const fb = gl.createFramebuffer();
         gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
         gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, mipLevel, z);
@@ -207,7 +209,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     for (let i = 0; i < this.arrayDepth; i++) {
       const mips = this.mipFramebuffers[i];
-      for (let curLevel = 1; curLevel < Math.log2(this.layerResolution) + 1; curLevel++) {
+      for (let curLevel = 1; curLevel < this.mipLevels; curLevel++) {
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, mips[curLevel]);
         const c = mipColors[curLevel];
         gl.clearColor(c[0], c[1], c[2], c[3]);
@@ -230,7 +232,7 @@ export default class WebGLAtlasTexture extends Texture {
     debug.style.background = "black";
 
     const mips = this.mipFramebuffers[layer];
-    for (let mipLevel = 0; mipLevel < Math.log2(this.layerResolution) + 1; mipLevel++) {
+    for (let mipLevel = 0; mipLevel < this.mipLevels; mipLevel++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, mips[mipLevel]);
 
       const c = document.createElement("canvas") as HTMLCanvasElement;
@@ -281,7 +283,7 @@ export default class WebGLAtlasTexture extends Texture {
     gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, this.layerResolution, this.layerResolution);
 
     state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
-    const maxMipLevels = Math.log2(this.layerResolution) + 1;
+    const maxMipLevels = this.mipLevels;
     for (let z = 0; z < prevArrayDepth; z++) {
       for (let mipLevel = 0; mipLevel < maxMipLevels; mipLevel++) {
         const res = this.layerResolution / Math.pow(2, mipLevel);
@@ -531,7 +533,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
     const mips = this.mipFramebuffers[layerIdx];
-    while (curSize >= 1) {
+    while (curSize >= 1 && mipLevel <= this.mipLevels) {
       const srcX = r * prevSize;
       const srcY = c * prevSize;
       const srcX2 = srcX + prevSize;
