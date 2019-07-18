@@ -364,10 +364,15 @@ export default class WebGLAtlasTexture extends Texture {
 
     const layer = this.layers[layerIdx];
 
-    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls;
-    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
-    uvTransform[2] = (1 / layer.colls) * (width / layer.size);
-    uvTransform[3] = (1 / layer.rows) * (height / layer.size);
+    // We want to target the center of each texel
+    const halfTexel = 0.5 / this.layerResolution;
+    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls + halfTexel;
+    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows + halfTexel;
+    // We want to subtract half a pixel from the left and right, so the width/height is -1
+    uvTransform[2] = (1 / layer.colls) * ((width - 1) / layer.size);
+    uvTransform[3] = (1 / layer.rows) * ((height - 1) / layer.size);
+
+    console.log(uvTransform[0], uvTransform[1], uvTransform[2], uvTransform[3]);
 
     if (texture.flipY) {
       uvTransform[1] = uvTransform[1] + uvTransform[3];
@@ -394,10 +399,11 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.clearTile(id, color);
 
-    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls;
-    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
-    uvTransform[2] = (1 / layer.colls) * (size / layer.size);
-    uvTransform[3] = (1 / layer.rows) * (size / layer.size);
+    const halfTexel = 0.5 / this.layerResolution;
+    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls + halfTexel;
+    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows + halfTexel;
+    uvTransform[2] = (1 / layer.colls) * ((size - 1) / layer.size);
+    uvTransform[3] = (1 / layer.rows) * ((size - 1) / layer.size);
 
     return id;
   }
