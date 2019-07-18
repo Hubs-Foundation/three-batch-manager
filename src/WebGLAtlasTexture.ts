@@ -231,6 +231,12 @@ export default class WebGLAtlasTexture extends Texture {
     debug.style.overflow = "scroll";
     debug.style.background = "black";
 
+    const close = document.createElement("button");
+    close.innerText = "close";
+    debug.appendChild(close);
+    close.addEventListener("click", () => document.body.removeChild(debug), { once: true });
+    close.style.marginBottom = "10px";
+
     const mips = this.mipFramebuffers[layer];
     for (let mipLevel = 0; mipLevel < this.mipLevels; mipLevel++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, mips[mipLevel]);
@@ -243,6 +249,7 @@ export default class WebGLAtlasTexture extends Texture {
       c.style.backgroundSize = "64px 64px";
       c.style.backgroundPosition = "0 0, 0 32px, 32px -32px, -32px 0px";
       c.style.backgroundColor = "white";
+      c.style.marginBottom = "10px";
 
       const ctx = c.getContext("2d");
       const imgData = ctx.createImageData(c.width, c.height);
