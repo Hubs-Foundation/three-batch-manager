@@ -71,6 +71,7 @@ export default class WebGLAtlasTexture extends Texture {
   mipFramebuffers: WebGLFramebuffer[][];
   nullTextureTransform: UVTransform;
   textures: Map<Texture, { count: number; id: TextureID; uvTransform: number[] }>;
+  mipLevels: number;
 
   constructor(renderer: WebGLRenderer, options: WebGLAtlasTextureOptions = {}) {
     super();
@@ -79,6 +80,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.layerResolution = options.layerResolution || 4096;
     this.minTileSize = options.minTileSize || 512;
+    this.mipLevels = Math.log2(this.minTileSize) + 1;
 
     this.textures = new Map();
 
@@ -159,10 +161,10 @@ export default class WebGLAtlasTexture extends Texture {
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
 
-    textureProperties.__maxMipLevel = Math.log2(this.layerResolution) + 1;
+    textureProperties.__maxMipLevel = this.mipLevels;
     gl.texStorage3D(
       gl.TEXTURE_2D_ARRAY,
-      textureProperties.__maxMipLevel,
+      this.mipLevels,
       gl.RGBA8,
       this.layerResolution,
       this.layerResolution,
@@ -171,7 +173,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     for (let z = 0; z < arrayDepth; z++) {
       const mips = [];
-      for (let mipLevel = 0; mipLevel < textureProperties.__maxMipLevel; mipLevel++) {
+      for (let mipLevel = 0; mipLevel < this.mipLevels; mipLevel++) {
         const fb = gl.createFramebuffer();
         gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
         gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.glTexture, mipLevel, z);
@@ -207,7 +209,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     for (let i = 0; i < this.arrayDepth; i++) {
       const mips = this.mipFramebuffers[i];
-      for (let curLevel = 1; curLevel < Math.log2(this.layerResolution) + 1; curLevel++) {
+      for (let curLevel = 1; curLevel < this.mipLevels; curLevel++) {
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, mips[curLevel]);
         const c = mipColors[curLevel];
         gl.clearColor(c[0], c[1], c[2], c[3]);
@@ -229,8 +231,14 @@ export default class WebGLAtlasTexture extends Texture {
     debug.style.overflow = "scroll";
     debug.style.background = "black";
 
+    const close = document.createElement("button");
+    close.innerText = "close";
+    debug.appendChild(close);
+    close.addEventListener("click", () => document.body.removeChild(debug), { once: true });
+    close.style.marginBottom = "10px";
+
     const mips = this.mipFramebuffers[layer];
-    for (let mipLevel = 0; mipLevel < Math.log2(this.layerResolution) + 1; mipLevel++) {
+    for (let mipLevel = 0; mipLevel < this.mipLevels; mipLevel++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, mips[mipLevel]);
 
       const c = document.createElement("canvas") as HTMLCanvasElement;
@@ -238,9 +246,10 @@ export default class WebGLAtlasTexture extends Texture {
       c.style.display = "block";
       c.style.backgroundImage =
         "linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)";
-      c.style.backgroundSize = "20px 20px";
-      c.style.backgroundPosition = "0 0, 0 10px, 10px -10px, -10px 0px";
+      c.style.backgroundSize = "64px 64px";
+      c.style.backgroundPosition = "0 0, 0 32px, 32px -32px, -32px 0px";
       c.style.backgroundColor = "white";
+      c.style.marginBottom = "10px";
 
       const ctx = c.getContext("2d");
       const imgData = ctx.createImageData(c.width, c.height);
@@ -281,7 +290,7 @@ export default class WebGLAtlasTexture extends Texture {
     gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, this.layerResolution, this.layerResolution);
 
     state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
-    const maxMipLevels = Math.log2(this.layerResolution) + 1;
+    const maxMipLevels = this.mipLevels;
     for (let z = 0; z < prevArrayDepth; z++) {
       for (let mipLevel = 0; mipLevel < maxMipLevels; mipLevel++) {
         const res = this.layerResolution / Math.pow(2, mipLevel);
@@ -362,10 +371,13 @@ export default class WebGLAtlasTexture extends Texture {
 
     const layer = this.layers[layerIdx];
 
-    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls;
-    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
-    uvTransform[2] = (1 / layer.colls) * (width / layer.size);
-    uvTransform[3] = (1 / layer.rows) * (height / layer.size);
+    // We want to target the center of each texel
+    const halfTexel = 0.5 / this.layerResolution;
+    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls + halfTexel;
+    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows + halfTexel;
+    // We want to subtract half a pixel from the left and right, so the width/height is -1
+    uvTransform[2] = (1 / layer.colls) * ((width - 1) / layer.size);
+    uvTransform[3] = (1 / layer.rows) * ((height - 1) / layer.size);
 
     if (texture.flipY) {
       uvTransform[1] = uvTransform[1] + uvTransform[3];
@@ -392,10 +404,11 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.clearTile(id, color);
 
-    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls;
-    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows;
-    uvTransform[2] = (1 / layer.colls) * (size / layer.size);
-    uvTransform[3] = (1 / layer.rows) * (size / layer.size);
+    const halfTexel = 0.5 / this.layerResolution;
+    uvTransform[0] = (atlasIdx % layer.colls) / layer.colls + halfTexel;
+    uvTransform[1] = Math.floor(atlasIdx / layer.rows) / layer.rows + halfTexel;
+    uvTransform[2] = (1 / layer.colls) * ((size - 1) / layer.size);
+    uvTransform[3] = (1 / layer.rows) * ((size - 1) / layer.size);
 
     return id;
   }
@@ -474,7 +487,6 @@ export default class WebGLAtlasTexture extends Texture {
     gl.bindFramebuffer(gl.FRAMEBUFFER, resizeFramebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, resizeTexture, 0);
 
-    console.log("Uploading image with resize", width, height, img);
     // Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
     // see https://jsfiddle.net/nu1xdgs3/13a
     const blitCopyHackTexture = gl.createTexture();
@@ -531,7 +543,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
     const mips = this.mipFramebuffers[layerIdx];
-    while (curSize >= 1) {
+    while (curSize >= 2 && mipLevel <= this.mipLevels) {
       const srcX = r * prevSize;
       const srcY = c * prevSize;
       const srcX2 = srcX + prevSize;
@@ -539,8 +551,8 @@ export default class WebGLAtlasTexture extends Texture {
 
       const destX = r * curSize;
       const destY = c * curSize;
-      const destX2 = destX + curSize;
-      const destY2 = destY + curSize;
+      // const destX2 = destX + curSize;
+      // const destY2 = destY + curSize;
 
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mips[mipLevel - 1]);
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, blitCopyHackFB);
