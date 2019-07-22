@@ -543,7 +543,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
     const mips = this.mipFramebuffers[layerIdx];
-    while (curSize >= 1 && mipLevel <= this.mipLevels) {
+    while (curSize >= 2 && mipLevel <= this.mipLevels) {
       const srcX = r * prevSize;
       const srcY = c * prevSize;
       const srcX2 = srcX + prevSize;
@@ -551,8 +551,8 @@ export default class WebGLAtlasTexture extends Texture {
 
       const destX = r * curSize;
       const destY = c * curSize;
-      const destX2 = destX + curSize;
-      const destY2 = destY + curSize;
+      // const destX2 = destX + curSize;
+      // const destY2 = destY + curSize;
 
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mips[mipLevel - 1]);
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, blitCopyHackFB);
