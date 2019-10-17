@@ -296,6 +296,11 @@ export class BatchManager {
 
     const batchableMesh = mesh as BatchableMesh;
 
+    if (this.batchForMesh.has(batchableMesh)) {
+      console.warn("Mesh is already in the batch, skipping.", mesh);
+      return false;
+    }
+
     if (Array.isArray(mesh.material)) {
       console.warn("Mesh uses unsupported multi-material, skipping.", mesh);
       return false;
