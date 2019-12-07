@@ -116,7 +116,7 @@ export default class WebGLAtlasTexture extends Texture {
 
     this.flipY = false;
 
-    this.createTextureArray(1);
+    this.createTextureArray(3);
 
     this.nullTextureTransform = [0, 0, 0, 0];
     this.nullTextureIndex = this.addColorRect(this.minTileSize, [1, 1, 1, 1], this.nullTextureTransform);

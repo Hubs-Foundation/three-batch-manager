@@ -16,8 +16,6 @@ import {
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { BatchManager } from "../src/index";
 
-console.log(navigator.userAgent);
-
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const context = canvas.getContext("webgl2", { antialias: true });
 
