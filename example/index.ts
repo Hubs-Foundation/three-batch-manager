@@ -1,5 +1,4 @@
 import {
-  Vector3,
   TextureLoader,
   MeshBasicMaterial,
   PlaneBufferGeometry,
@@ -15,9 +14,7 @@ import {
   DirectionalLight,
   Texture,
   AxesHelper,
-  Material,
-  Color,
-  MeshStandardMaterial
+  Color
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader, GLTF } from "three/examples/jsm/loaders/GLTFLoader";
