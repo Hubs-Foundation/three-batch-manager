@@ -1,4 +1,4 @@
-import { Texture, Math as ThreeMath, WebGLRenderer } from "three";
+import { Texture, Math as ThreeMath, WebGLRenderer, WebGLState } from "three";
 
 export type TileID = number;
 export type LayerID = number;
@@ -56,6 +56,32 @@ export interface WebGLAtlasTextureOptions {
   layerResolution?: number;
   minTileSize?: number;
   maxLayers?: number;
+}
+
+// Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
+// see https://jsfiddle.net/nu1xdgs3/13a
+// This hack breaks mip map generation on some Mac OS computers, so we only want to enable it on Android devices.
+const useBlitHack = /android/i.test(navigator.userAgent);
+
+function createBlitCopyFramebuffer(
+  gl: WebGL2RenderingContext,
+  state: WebGLState,
+  width: number,
+  height: number,
+  target: WebGLTexture
+) {
+  if (!useBlitHack) {
+    return [null, null];
+  }
+  const blitCopyHackTexture = gl.createTexture();
+  const blitCopyHackFB = gl.createFramebuffer();
+  state.activeTexture(gl.TEXTURE0);
+  state.bindTexture(gl.TEXTURE_2D, blitCopyHackTexture);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, blitCopyHackFB);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, blitCopyHackTexture, 0);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+  state.bindTexture(gl.TEXTURE_2D_ARRAY, target);
+  return [blitCopyHackTexture, blitCopyHackFB];
 }
 
 export default class WebGLAtlasTexture extends Texture {
@@ -269,7 +295,7 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   growTextureArray(newDepth: number) {
-    const { state, properties } = this.renderer;
+    const { state } = this.renderer;
     const gl = this.renderer.context as WebGL2RenderingContext;
 
     const prevGlTexture = this.glTexture;
@@ -277,35 +303,35 @@ export default class WebGLAtlasTexture extends Texture {
     const prevMipFramebuffers = this.mipFramebuffers;
 
     this.createTextureArray(newDepth);
-    console.log("Growing array to", newDepth);
 
-    // Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
-    // see https://jsfiddle.net/nu1xdgs3/13a
-    const blitCopyHackTexture = gl.createTexture();
-    const blitCopyHackFB = gl.createFramebuffer();
-    state.activeTexture(gl.TEXTURE0);
-    state.bindTexture(gl.TEXTURE_2D, blitCopyHackTexture);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, blitCopyHackFB);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, blitCopyHackTexture, 0);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, this.layerResolution, this.layerResolution);
+    const [blitCopyHackTexture, blitCopyHackFB] = createBlitCopyFramebuffer(
+      gl,
+      state,
+      this.layerResolution,
+      this.layerResolution,
+      this.glTexture
+    );
 
-    state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
     const maxMipLevels = this.mipLevels;
     for (let z = 0; z < prevArrayDepth; z++) {
       for (let mipLevel = 0; mipLevel < maxMipLevels; mipLevel++) {
         const res = this.layerResolution / Math.pow(2, mipLevel);
 
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, prevMipFramebuffers[z][mipLevel]);
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, blitCopyHackFB);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, useBlitHack ? blitCopyHackFB : this.mipFramebuffers[z][mipLevel]);
         gl.blitFramebuffer(0, 0, res, res, 0, 0, res, res, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
-        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blitCopyHackFB);
-        gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, mipLevel, 0, 0, z, 0, 0, res, res);
+        if (useBlitHack) {
+          gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blitCopyHackFB);
+          gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, mipLevel, 0, 0, z, 0, 0, res, res);
+        }
       }
     }
 
-    gl.deleteTexture(blitCopyHackTexture);
-    gl.deleteFramebuffer(blitCopyHackFB);
+    if (useBlitHack) {
+      gl.deleteTexture(blitCopyHackTexture);
+      gl.deleteFramebuffer(blitCopyHackFB);
+    }
 
     for (let z = 0; z < prevMipFramebuffers.length; z++) {
       const mips = prevMipFramebuffers[z];
@@ -487,32 +513,42 @@ export default class WebGLAtlasTexture extends Texture {
     gl.bindFramebuffer(gl.FRAMEBUFFER, resizeFramebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, resizeTexture, 0);
 
-    // Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
-    // see https://jsfiddle.net/nu1xdgs3/13a
-    const blitCopyHackTexture = gl.createTexture();
-    const blitCopyHackFB = gl.createFramebuffer();
-    state.bindTexture(gl.TEXTURE_2D, blitCopyHackTexture);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, blitCopyHackFB);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, blitCopyHackTexture, 0);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+    const [blitCopyHackTexture, blitCopyHackFB] = createBlitCopyFramebuffer(gl, state, width, height, this.glTexture);
 
     const layer = this.layers[layerIdx];
     const xOffset = (atlasIdx % layer.colls) * layer.size;
     const yOffset = Math.floor(atlasIdx / layer.rows) * layer.size;
 
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, resizeFramebuffer);
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, blitCopyHackFB);
-    gl.blitFramebuffer(0, 0, img.width, img.height, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, useBlitHack ? blitCopyHackFB : this.mipFramebuffers[layerIdx][0]);
+    const blitXOffset = useBlitHack ? 0 : xOffset;
+    const blitYOffset = useBlitHack ? 0 : yOffset;
+    gl.blitFramebuffer(
+      0,
+      0,
+      img.width,
+      img.height,
+      blitXOffset,
+      blitYOffset,
+      blitXOffset + width,
+      blitYOffset + height,
+      gl.COLOR_BUFFER_BIT,
+      gl.LINEAR
+    );
 
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blitCopyHackFB);
-    state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
-    gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, 0, xOffset, yOffset, layerIdx, 0, 0, width, height);
+    if (useBlitHack) {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blitCopyHackFB);
+      gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, 0, xOffset, yOffset, layerIdx, 0, 0, width, height);
+    }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     gl.deleteTexture(resizeTexture);
-    gl.deleteTexture(blitCopyHackTexture);
-    gl.deleteFramebuffer(blitCopyHackFB);
+
+    if (useBlitHack) {
+      gl.deleteTexture(blitCopyHackTexture);
+      gl.deleteFramebuffer(blitCopyHackFB);
+    }
 
     this.genMipmaps(layerIdx, atlasIdx);
   }
@@ -531,17 +567,8 @@ export default class WebGLAtlasTexture extends Texture {
     const r = atlasIdx % layer.colls;
     const c = Math.floor(atlasIdx / layer.rows);
 
-    // Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
-    // see https://jsfiddle.net/nu1xdgs3/13a
-    const blitCopyHackTexture = gl.createTexture();
-    const blitCopyHackFB = gl.createFramebuffer();
-    state.activeTexture(gl.TEXTURE0);
-    state.bindTexture(gl.TEXTURE_2D, blitCopyHackTexture);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, blitCopyHackFB);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, blitCopyHackTexture, 0);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, size, size);
+    const [blitCopyHackTexture, blitCopyHackFB] = createBlitCopyFramebuffer(gl, state, size, size, this.glTexture);
 
-    state.bindTexture(gl.TEXTURE_2D_ARRAY, this.glTexture);
     const mips = this.mipFramebuffers[layerIdx];
     while (curSize >= 2 && mipLevel <= this.mipLevels) {
       const srcX = r * prevSize;
@@ -551,15 +578,28 @@ export default class WebGLAtlasTexture extends Texture {
 
       const destX = r * curSize;
       const destY = c * curSize;
-      // const destX2 = destX + curSize;
-      // const destY2 = destY + curSize;
 
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, mips[mipLevel - 1]);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, blitCopyHackFB);
-      gl.blitFramebuffer(srcX, srcY, srcX2, srcY2, 0, 0, curSize, curSize, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, useBlitHack ? blitCopyHackFB : mips[mipLevel]);
+      const blitXOffset = useBlitHack ? 0 : destX;
+      const blitYOffset = useBlitHack ? 0 : destY;
+      gl.blitFramebuffer(
+        srcX,
+        srcY,
+        srcX2,
+        srcY2,
+        blitXOffset,
+        blitYOffset,
+        blitXOffset + curSize,
+        blitYOffset + curSize,
+        gl.COLOR_BUFFER_BIT,
+        gl.LINEAR
+      );
 
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blitCopyHackFB);
-      gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, mipLevel, destX, destY, layerIdx, 0, 0, curSize, curSize);
+      if (useBlitHack) {
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, blitCopyHackFB);
+        gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, mipLevel, destX, destY, layerIdx, 0, 0, curSize, curSize);
+      }
 
       prevSize = curSize;
       mipLevel++;
@@ -567,6 +607,11 @@ export default class WebGLAtlasTexture extends Texture {
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    if (useBlitHack) {
+      gl.deleteTexture(blitCopyHackTexture);
+      gl.deleteFramebuffer(blitCopyHackFB);
+    }
   }
 
   removeTexture(texture: Texture) {

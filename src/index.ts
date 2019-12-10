@@ -11,7 +11,7 @@ import {
   MeshBasicMaterial
 } from "three";
 import WebGLAtlasTexture from "./WebGLAtlasTexture";
-import { vertexShader, fragmentShader, BatchRawUniformGroup, InstanceID } from "./UnlitBatchShader";
+import { vertexShader, fragmentShader, BatchRawUniformGroup } from "./UnlitBatchShader";
 
 interface BatchableBufferGeometry extends BufferGeometry {
   attributes: {

@@ -5,10 +5,13 @@ const webpack = require("webpack");
 module.exports = {
   mode: "development",
   devtool: "inline-source-map",
-  entry: path.join(__dirname, "index.ts"),
+  entry: {
+    index: path.join(__dirname, "index.ts"),
+    "basic-image-batching": path.join(__dirname, "basic-image-batching.ts")
+  },
   output: {
     path: path.resolve(__dirname, "dist"),
-    filename: "bundle.js"
+    filename: "[name].js"
   },
   resolve: {
     extensions: [".ts", ".js"]
@@ -21,7 +24,14 @@ module.exports = {
   },
   plugins: [
     new HTMLWebpackPlugin({
-      template: path.join(__dirname, "index.html")
+      filename: "index.html",
+      template: path.join(__dirname, "index.html"),
+      chunks: ["index"]
+    }),
+    new HTMLWebpackPlugin({
+      filename: "basic-image-batching.html",
+      template: path.join(__dirname, "basic-image-batching.html"),
+      chunks: ["basic-image-batching"]
     }),
     new webpack.ProvidePlugin({
       THREE: "three"
