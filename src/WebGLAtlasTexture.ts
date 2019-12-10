@@ -60,8 +60,8 @@ export interface WebGLAtlasTextureOptions {
 
 // Blitting to a non 0 layer is broken on mobile, workaround by blitting then copying
 // see https://jsfiddle.net/nu1xdgs3/13a
-// This hack breaks mip map generation on some Mac OS computers, so we disable it there.
-const useBlitHack = !/mac os/i.test(navigator.userAgent);
+// This hack breaks mip map generation on some Mac OS computers, so we only want to enable it on Android devices.
+const useBlitHack = /android/i.test(navigator.userAgent);
 
 function createBlitCopyFramebuffer(
   gl: WebGL2RenderingContext,
