@@ -40,7 +40,7 @@
     ]
   },
   "peerDependencies": {
-    "three": "^0.104.0"
+    "three": "^0.111.0"
   },
   "devDependencies": {
     "@types/webgl2": "0.0.4",
