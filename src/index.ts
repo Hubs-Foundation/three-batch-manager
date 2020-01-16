@@ -32,6 +32,7 @@ interface UnlitBatchOptions {
   pseudoInstancing: boolean;
   maxInstances: number;
   shaders?: ShaderOverride;
+  sharedUniforms: {};
 }
 
 export class UnlitBatch extends Mesh {
@@ -54,7 +55,8 @@ export class UnlitBatch extends Mesh {
         bufferSize: 65536,
         enableVertexColors: true,
         pseudoInstancing: true,
-        maxInstances: 512
+        maxInstances: 512,
+        sharedUniforms: {}
       },
       options
     );
@@ -80,6 +82,7 @@ export class UnlitBatch extends Mesh {
         VERTEX_COLORS: opts.enableVertexColors
       },
       uniforms: {
+        ...opts.sharedUniforms,
         map: { value: atlas }
       }
     });
@@ -233,12 +236,14 @@ interface BatchManagerOptions {
   maxBufferSize?: number;
   ubo?: BatchRawUniformGroup;
   shaders?: ShaderOverrides;
+  sharedUniforms?: {};
 }
 
 export class BatchManager {
   scene: Scene;
   renderer: WebGLRenderer;
 
+  sharedUniforms: {};
   maxInstances: number;
   instanceCount: number;
 
@@ -254,6 +259,7 @@ export class BatchManager {
   constructor(scene: Scene, renderer: WebGLRenderer, options: BatchManagerOptions = {}) {
     this.scene = scene;
     this.renderer = renderer;
+    this.sharedUniforms = options.sharedUniforms || {};
     this.maxInstances = options.maxInstances || 512;
     this.maxBufferSize = options.maxBufferSize || 65536;
 
@@ -339,7 +345,8 @@ export class BatchManager {
       nextBatch = new UnlitBatch(this.ubo, this.atlas, {
         maxInstances: this.maxInstances,
         bufferSize: this.maxBufferSize,
-        shaders: this.shaders.unlit
+        shaders: this.shaders.unlit,
+        sharedUniforms: this.sharedUniforms
       });
       nextBatch.material.side = batchableMesh.material.side;
       this.scene.add(nextBatch);
