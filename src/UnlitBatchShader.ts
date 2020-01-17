@@ -188,6 +188,8 @@ out vec4 vColor;
 flat out vec4 vUVTransform;
 flat out vec4 vMapSettings;
 
+out float fogDepth;
+
 void main() {
   #ifdef PSEUDO_INSTANCING
   uint instanceIndex = uint(instance);
@@ -205,7 +207,11 @@ void main() {
   vUVTransform = instanceData.uvTransforms[instanceIndex];
   vMapSettings = instanceData.mapSettings[instanceIndex];
 
-  gl_Position = projectionMatrix * viewMatrix * instanceData.transforms[instanceIndex] * vec4(position, 1.0);
+  vec4 mvPosition = viewMatrix * instanceData.transforms[instanceIndex] * vec4(position, 1.0);
+
+  gl_Position = projectionMatrix * mvPosition;
+
+  fogDepth = -mvPosition.z;
 }
 `;
 
@@ -215,6 +221,15 @@ precision highp int;
 precision highp sampler2DArray;
 
 uniform sampler2DArray map;
+
+in float fogDepth;
+uniform vec3 fogColor;
+
+// Fog Type
+// 0.0 -> disabled
+// 1.0 -> linear
+// 2.0 -> exponential
+uniform vec4 fogOptions; // r = type; g = density; b = near; a = far;
 
 in vec2 vUv;
 in vec4 vColor;
@@ -251,5 +266,22 @@ void main() {
 
   int mapIdx = int(vMapSettings.x);
   outColor = texture(map, vec3(uv, mapIdx)) * vColor;
+
+  float fogType = fogOptions.r;
+
+  if (fogType > 0.5) {
+    float fogFactor = 0.0;
+
+    if (fogType < 1.5) {
+      float fogNear = fogOptions.z;
+      float fogFar = fogOptions.w;
+      fogFactor = smoothstep( fogNear, fogFar, fogDepth );
+    } else {
+      float fogDensity = fogOptions.y;
+      fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDepth * fogDepth );
+    }
+
+    outColor.rgb = mix( outColor.rgb, fogColor, fogFactor );
+  }
 }
 `;
