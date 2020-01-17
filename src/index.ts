@@ -8,7 +8,11 @@ import {
   Scene,
   WebGLRenderer,
   BufferAttribute,
-  MeshBasicMaterial
+  MeshBasicMaterial,
+  Color,
+  Vector4,
+  Fog,
+  FogExp2
 } from "three";
 import WebGLAtlasTexture from "./WebGLAtlasTexture";
 import { vertexShader, fragmentShader, BatchRawUniformGroup } from "./UnlitBatchShader";
@@ -236,14 +240,12 @@ interface BatchManagerOptions {
   maxBufferSize?: number;
   ubo?: BatchRawUniformGroup;
   shaders?: ShaderOverrides;
-  sharedUniforms?: {};
 }
 
 export class BatchManager {
   scene: Scene;
   renderer: WebGLRenderer;
 
-  sharedUniforms: {};
   maxInstances: number;
   instanceCount: number;
 
@@ -256,10 +258,21 @@ export class BatchManager {
   ubo: BatchRawUniformGroup;
   shaders: ShaderOverrides;
 
+  fogOptions: Vector4;
+  fogColor: Color;
+  sharedUniforms: {};
+
   constructor(scene: Scene, renderer: WebGLRenderer, options: BatchManagerOptions = {}) {
     this.scene = scene;
     this.renderer = renderer;
-    this.sharedUniforms = options.sharedUniforms || {};
+
+    this.fogOptions = new Vector4();
+    this.fogColor = new Color();
+    this.sharedUniforms = {
+      fogOptions: { value: this.fogOptions },
+      fogColor: { value: this.fogColor }
+    };
+
     this.maxInstances = options.maxInstances || 512;
     this.maxBufferSize = options.maxBufferSize || 65536;
 
@@ -377,7 +390,28 @@ export class BatchManager {
     return true;
   }
 
+  updateFog() {
+    const fog: any = this.scene.fog;
+
+    if (!fog) {
+      this.fogOptions.x = 0; // FogType = disabled
+      return;
+    }
+
+    this.fogColor.copy(fog.color);
+
+    if (fog.isFog) {
+      this.fogOptions.x = 1; // FogType = linear
+      this.fogOptions.z = fog.near;
+      this.fogOptions.w = fog.far;
+    } else {
+      this.fogOptions.x = 2; // FogType = exponential
+      this.fogOptions.y = fog.density;
+    }
+  }
+
   update(time: number) {
+    this.updateFog();
     this.ubo.update(time);
   }
 }
