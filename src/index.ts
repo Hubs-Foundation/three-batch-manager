@@ -334,6 +334,11 @@ export class BatchManager {
 
     const batches = this.batches;
 
+    if (!batchableMesh.geometry.index) {
+      console.warn("Non-indexed mesh, skipping.", mesh);
+      return false;
+    }
+
     const indexCount = batchableMesh.geometry.index.count;
     const vertCount = batchableMesh.geometry.attributes.position.count;
 
