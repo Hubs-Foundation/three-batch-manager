@@ -8,7 +8,11 @@ import {
   Scene,
   WebGLRenderer,
   BufferAttribute,
-  MeshBasicMaterial
+  MeshBasicMaterial,
+  Color,
+  Vector4,
+  Fog,
+  FogExp2
 } from "three";
 import WebGLAtlasTexture from "./WebGLAtlasTexture";
 import { vertexShader, fragmentShader, BatchRawUniformGroup } from "./UnlitBatchShader";
@@ -32,6 +36,7 @@ interface UnlitBatchOptions {
   pseudoInstancing: boolean;
   maxInstances: number;
   shaders?: ShaderOverride;
+  sharedUniforms: {};
 }
 
 export class UnlitBatch extends Mesh {
@@ -54,7 +59,8 @@ export class UnlitBatch extends Mesh {
         bufferSize: 65536,
         enableVertexColors: true,
         pseudoInstancing: true,
-        maxInstances: 512
+        maxInstances: 512,
+        sharedUniforms: {}
       },
       options
     );
@@ -80,6 +86,7 @@ export class UnlitBatch extends Mesh {
         VERTEX_COLORS: opts.enableVertexColors
       },
       uniforms: {
+        ...opts.sharedUniforms,
         map: { value: atlas }
       }
     });
@@ -251,9 +258,21 @@ export class BatchManager {
   ubo: BatchRawUniformGroup;
   shaders: ShaderOverrides;
 
+  fogOptions: Vector4;
+  fogColor: Color;
+  sharedUniforms: {};
+
   constructor(scene: Scene, renderer: WebGLRenderer, options: BatchManagerOptions = {}) {
     this.scene = scene;
     this.renderer = renderer;
+
+    this.fogOptions = new Vector4();
+    this.fogColor = new Color();
+    this.sharedUniforms = {
+      fogOptions: { value: this.fogOptions },
+      fogColor: { value: this.fogColor }
+    };
+
     this.maxInstances = options.maxInstances || 512;
     this.maxBufferSize = options.maxBufferSize || 65536;
 
@@ -315,6 +334,11 @@ export class BatchManager {
 
     const batches = this.batches;
 
+    if (!batchableMesh.geometry.index) {
+      console.warn("Non-indexed mesh, skipping.", mesh);
+      return false;
+    }
+
     const indexCount = batchableMesh.geometry.index.count;
     const vertCount = batchableMesh.geometry.attributes.position.count;
 
@@ -339,7 +363,8 @@ export class BatchManager {
       nextBatch = new UnlitBatch(this.ubo, this.atlas, {
         maxInstances: this.maxInstances,
         bufferSize: this.maxBufferSize,
-        shaders: this.shaders.unlit
+        shaders: this.shaders.unlit,
+        sharedUniforms: this.sharedUniforms
       });
       nextBatch.material.side = batchableMesh.material.side;
       this.scene.add(nextBatch);
@@ -370,7 +395,28 @@ export class BatchManager {
     return true;
   }
 
+  updateFog() {
+    const fog: any = this.scene.fog;
+
+    if (!fog) {
+      this.fogOptions.x = 0; // FogType = disabled
+      return;
+    }
+
+    this.fogColor.copy(fog.color);
+
+    if (fog.isFog) {
+      this.fogOptions.x = 1; // FogType = linear
+      this.fogOptions.z = fog.near;
+      this.fogOptions.w = fog.far;
+    } else {
+      this.fogOptions.x = 2; // FogType = exponential
+      this.fogOptions.y = fog.density;
+    }
+  }
+
   update(time: number) {
+    this.updateFog();
     this.ubo.update(time);
   }
 }
