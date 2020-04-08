@@ -165,7 +165,7 @@ export default class WebGLAtlasTexture extends Texture {
     const slot = 0;
 
     const { state, properties } = this.renderer;
-    const gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
     const textureProperties = properties.get(this);
 
     this.glTexture = gl.createTexture();
@@ -212,7 +212,7 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   generateDebugMips() {
-    const gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
 
     const mipColors = [
       null,
@@ -245,7 +245,7 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   debugDumpMips(layer: LayerID = 0) {
-    const gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
 
     const fb = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
@@ -296,7 +296,7 @@ export default class WebGLAtlasTexture extends Texture {
 
   growTextureArray(newDepth: number) {
     const { state } = this.renderer;
-    const gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
 
     const prevGlTexture = this.glTexture;
     const prevArrayDepth = this.arrayDepth;
@@ -440,7 +440,7 @@ export default class WebGLAtlasTexture extends Texture {
   }
 
   clearTile(id: TextureID, color: number[]) {
-    const gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
 
     const [layerIdx, atlasIdx] = id;
     const layer = this.layers[layerIdx];
@@ -464,7 +464,7 @@ export default class WebGLAtlasTexture extends Texture {
 
   uploadImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage) {
     const state = this.renderer.state;
-    const gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
     const slot = 0;
 
     state.activeTexture(gl.TEXTURE0 + slot);
@@ -497,7 +497,7 @@ export default class WebGLAtlasTexture extends Texture {
 
   uploadAndResizeImage(layerIdx: LayerID, atlasIdx: TileID, img: UploadableImage, width: number, height: number) {
     const state = this.renderer.state;
-    const gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
 
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
@@ -555,7 +555,7 @@ export default class WebGLAtlasTexture extends Texture {
 
   genMipmaps(layerIdx: LayerID, atlasIdx: TileID) {
     const state = this.renderer.state;
-    const gl = this.renderer.context as WebGL2RenderingContext;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
 
     const layer = this.layers[layerIdx];
 

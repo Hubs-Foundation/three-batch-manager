@@ -66,14 +66,14 @@ export class UnlitBatch extends Mesh {
     );
 
     const geometry = new BufferGeometry();
-    geometry.addAttribute("instance", new Float32BufferAttribute(new Float32Array(opts.bufferSize), 1));
-    geometry.addAttribute("position", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 3), 3));
+    geometry.setAttribute("instance", new Float32BufferAttribute(new Float32Array(opts.bufferSize), 1));
+    geometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 3), 3));
 
     if (opts.enableVertexColors) {
-      geometry.addAttribute("color", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 3).fill(1), 3));
+      geometry.setAttribute("color", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 3).fill(1), 3));
     }
 
-    geometry.addAttribute("uv", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 2), 2));
+    geometry.setAttribute("uv", new Float32BufferAttribute(new Float32Array(opts.bufferSize * 2), 2));
     geometry.setIndex(new Uint32BufferAttribute(new Uint32Array(opts.bufferSize), 1));
     geometry.setDrawRange(0, 0);
 
